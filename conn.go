@@ -32,10 +32,10 @@ type Conn interface {
 	Emit(msg string, v ...interface{})
 
 	// Broadcast server side apis
-	Join(room string)
-	Leave(room string)
-	LeaveAll()
-	Rooms() []string
+	// Join(room string)
+	// Leave(room string)
+	// LeaveAll()
+	// Rooms() []string
 }
 
 type errorMessage struct {
@@ -58,11 +58,11 @@ type conn struct {
 	quitChan   chan struct{}
 	handlers   map[string]*namespaceHandler
 	namespaces map[string]*namespaceConn
-	closeOnce  sync.Once
 	id         uint64
+	closeOnce  sync.Once
 }
 
-func newConn(c engineio.Conn, handlers map[string]*namespaceHandler, broadcast Broadcast) (*conn, error) {
+func newConn(c engineio.Conn, handlers map[string]*namespaceHandler, broadcast Broadcast) error {
 	ret := &conn{
 		Conn:       c,
 		broadcast:  broadcast,
@@ -76,9 +76,18 @@ func newConn(c engineio.Conn, handlers map[string]*namespaceHandler, broadcast B
 	}
 	if err := ret.connect(); err != nil {
 		ret.Close()
-		return nil, err
+		return err
 	}
-	return ret, nil
+	return nil
+}
+
+func (c *conn) newNamespaceConn(namespace string, broadcast Broadcast) *namespaceConn {
+	return &namespaceConn{
+		conn:      c,
+		namespace: namespace,
+		acks:      sync.Map{},
+		broadcast: broadcast,
+	}
 }
 
 func (c *conn) Close() error {
@@ -98,7 +107,7 @@ func (c *conn) Close() error {
 }
 
 func (c *conn) connect() error {
-	root := newNamespaceConn(c, "/", c.broadcast)
+	root := c.newNamespaceConn("/", c.broadcast)
 	c.namespaces[""] = root
 	header := parser.Header{
 		Type: parser.Connect,
@@ -125,6 +134,7 @@ func (c *conn) nextID() uint64 {
 	return c.id
 }
 
+//TODO: implements io.Writer Write(p []byte) (n int, err error)
 func (c *conn) write(header parser.Header, args []reflect.Value) {
 	data := make([]interface{}, len(args))
 	for i := range data {
@@ -201,12 +211,12 @@ func (c *conn) serveRead() {
 		}
 		switch header.Type {
 		case parser.Ack:
-			conn, ok := c.namespaces[header.Namespace]
+			nsConn, ok := c.namespaces[header.Namespace]
 			if !ok {
 				c.decoder.DiscardLast()
 				continue
 			}
-			conn.dispatch(header)
+			nsConn.dispatch(header)
 		case parser.Event:
 			conn, ok := c.namespaces[header.Namespace]
 			if !ok {
@@ -240,7 +250,7 @@ func (c *conn) serveRead() {
 			}
 			conn, ok := c.namespaces[header.Namespace]
 			if !ok {
-				conn = newNamespaceConn(c, header.Namespace, c.broadcast)
+				conn = c.newNamespaceConn(header.Namespace, c.broadcast)
 				c.namespaces[header.Namespace] = conn
 			}
 			handler, ok := c.handlers[header.Namespace]

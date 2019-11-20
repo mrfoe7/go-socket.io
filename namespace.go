@@ -97,15 +97,6 @@ type namespaceConn struct {
 	broadcast Broadcast
 }
 
-func newNamespaceConn(conn *conn, namespace string, broadcast Broadcast) *namespaceConn {
-	return &namespaceConn{
-		conn:      conn,
-		namespace: namespace,
-		acks:      sync.Map{},
-		broadcast: broadcast,
-	}
-}
-
 func (c *namespaceConn) SetContext(v interface{}) {
 	c.context = v
 }
@@ -138,7 +129,7 @@ func (c *namespaceConn) Emit(event string, v ...interface{}) {
 		}
 	}
 
-	args := make([]reflect.Value, len(v)+1)
+	args := make([]reflect.Value, 0, len(v)+1)
 	args[0] = reflect.ValueOf(event)
 	for i := 1; i < len(args); i++ {
 		args[i] = reflect.ValueOf(v[i-1])
