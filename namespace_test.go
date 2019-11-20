@@ -10,6 +10,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// type TestCase struct {
+// }
+
+// type ErrorTestCase struct {
+// 	Message string
+// }
+
+// type TestCase struct {
+// }
+
+// type ErrorTestCase struct {
+// 	Message string
+// }
+
 func TestNamespaceHandler(t *testing.T) {
 	should := assert.New(t)
 	must := require.New(t)
@@ -122,4 +136,39 @@ func TestNamespaceHandlerEvent(t *testing.T) {
 			should.Equal(test.ret, rets)
 		})
 	}
+}
+
+func TestNamespaceAPI(t *testing.T) {
+	// handlers := make(map[string]*namespaceHandler)
+	// broadcast := NewBroadcast()
+	// conn := &conn{
+	// 	//TODO:
+	// 	Conn: engineio.Conn,
+
+	// 	broadcast:  broadcast,
+	// 	encoder:    parser.NewEncoder(c),
+	// 	decoder:    parser.NewDecoder(c),
+	// 	errorChan:  make(chan errorMessage),
+	// 	writeChan:  make(chan writePacket),
+	// 	quitChan:   make(chan struct{}),
+	// 	handlers:   handlers,
+	// 	namespaces: make(map[string]*namespaceConn),
+	// }
+	// nc := newNamespaceConn(conn, header.Namespace, conn.braodcast)
+	// context :=
+	// nc.SetContext()
+
+	// savedContext := nc.Context()
+	// if savedContext != context {
+	// 	t.Errorf("[]")
+	// }
+
+}
+
+func TestErrorNamespaceAPI(t *testing.T) {
+
+}
+
+func TestNamespaceDispacth(t *testing.T) {
+
 }
