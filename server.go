@@ -102,13 +102,13 @@ func (s *Server) RoomLen(room string) int {
 	return s.broadcast.Len(room)
 }
 
-//  Rooms gives list of all the rooms
+// Rooms gives list of all the rooms
 func (s *Server) Rooms() []string {
 	return s.broadcast.Rooms(nil)
 }
 
 func (s *Server) serveConn(c engineio.Conn) {
-	_, err := newConn(c, s.handlers, s.broadcast)
+	err := newConn(c, s.handlers, s.broadcast)
 	if err != nil {
 		root := s.handlers[""]
 		if root != nil && root.onError != nil {
