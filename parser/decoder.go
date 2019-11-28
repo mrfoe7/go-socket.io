@@ -252,6 +252,7 @@ func (d *Decoder) readHeader(header *Header) (uint64, error) {
 	return bufferCount, err
 }
 
+//
 func (d *Decoder) readEvent(event *string) error {
 	b, err := d.packetReader.ReadByte()
 	if err != nil {

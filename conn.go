@@ -166,7 +166,8 @@ func (c *conn) serveError() {
 		case msg := <-c.errorChan:
 			if handler := c.namespace(msg.namespace); handler != nil {
 				if handler.onError != nil {
-					handler.onError(msg.error)
+					//
+					handler.Error()
 				}
 			}
 		}
@@ -189,6 +190,7 @@ func (c *conn) serveWrite() {
 
 func (c *conn) serveRead() {
 	defer c.Close()
+
 	var event string
 	for {
 		var header parser.Header
@@ -207,6 +209,7 @@ func (c *conn) serveRead() {
 				continue
 			}
 			conn.dispatch(header)
+		//NOTICE: какие agrs поучаются
 		case parser.Event:
 			conn, ok := c.namespaces[header.Namespace]
 			if !ok {
@@ -218,13 +221,13 @@ func (c *conn) serveRead() {
 				c.decoder.DiscardLast()
 				continue
 			}
-			types := handler.getTypes(header, event)
-			args, err := c.decoder.DecodeArgs(types)
-			if err != nil {
-				c.onError(header.Namespace, err)
-				return
-			}
-			ret, err := handler.dispatch(conn, header, event, args)
+			// types := handler.getTypes(header, event)
+			// args, err := c.decoder.DecodeArgs(types)
+			// if err != nil {
+			// 	c.onError(header.Namespace, err)
+			// 	return
+			// }
+			ret, err := handler.dispatch(conn, header, event, nil)
 			if err != nil {
 				c.onError(header.Namespace, err)
 				return
@@ -248,13 +251,15 @@ func (c *conn) serveRead() {
 				handler.dispatch(conn, header, "", nil)
 			}
 			c.write(header, nil)
+		//NOTICE: какие agrs получаются
 		case parser.Disconnect:
-			types := []reflect.Type{reflect.TypeOf("")}
-			args, err := c.decoder.DecodeArgs(types)
-			if err != nil {
-				c.onError(header.Namespace, err)
-				return
-			}
+			//TODO:
+			// types := []reflect.Type{reflect.TypeOf("")}
+			// args, err := c.decoder.DecodeArgs(types)
+			// if err != nil {
+			// 	c.onError(header.Namespace, err)
+			// 	return
+			// }
 			conn, ok := c.namespaces[header.Namespace]
 			if !ok {
 				c.decoder.DiscardLast()
@@ -263,7 +268,7 @@ func (c *conn) serveRead() {
 			delete(c.namespaces, header.Namespace)
 			handler, ok := c.handlers[header.Namespace]
 			if ok {
-				handler.dispatch(conn, header, "", args)
+				handler.dispatch(conn, header, "", nil)
 			}
 		}
 	}

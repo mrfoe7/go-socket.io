@@ -10,34 +10,19 @@ import (
 )
 
 type namespaceHandler struct {
-	onConnect    func(c Conn) error
-	onDisconnect func(c Conn, msg string)
-	onError      func(err error)
-	events       map[string]*funcHandler
+	onConnect    *HandlerFunc
+	onDisconnect *HandlerFunc
+	onError      *HandlerFunc
+	events       map[string]*HandlerFunc
 }
 
 func newHandler() *namespaceHandler {
 	return &namespaceHandler{
-		events: make(map[string]*funcHandler),
+		events: make(map[string]*HandlerFunc),
 	}
 }
 
-func (h *namespaceHandler) OnConnect(f func(Conn) error) {
-	h.onConnect = f
-}
-
-func (h *namespaceHandler) OnDisconnect(f func(Conn, string)) {
-	h.onDisconnect = f
-}
-
-func (h *namespaceHandler) OnError(f func(error)) {
-	h.onError = f
-}
-
-func (h *namespaceHandler) OnEvent(event string, f interface{}) {
-	h.events[event] = newEventFunc(f)
-}
-
+//TODO: []reflect.Type
 func (h *namespaceHandler) getTypes(header parser.Header, event string) []reflect.Type {
 	switch header.Type {
 	case parser.Error:
@@ -49,11 +34,12 @@ func (h *namespaceHandler) getTypes(header parser.Header, event string) []reflec
 		if namespaceHandler == nil {
 			return nil
 		}
-		return namespaceHandler.argTypes
+		return namespaceHandler
 	}
 	return nil
 }
 
+//TODO: args []reflect.Value
 func (h *namespaceHandler) dispatch(c Conn, header parser.Header, event string, args []reflect.Value) ([]reflect.Value, error) {
 	switch header.Type {
 	case parser.Connect:
@@ -68,7 +54,9 @@ func (h *namespaceHandler) dispatch(c Conn, header parser.Header, event string, 
 			msg = args[0].Interface().(string)
 		}
 		if h.onDisconnect != nil {
-			h.onDisconnect(c, msg)
+			h.onDisconnect = func(c *Context) {
+				// (c, msg)
+			}
 		}
 		return nil, nil
 	case parser.Error:

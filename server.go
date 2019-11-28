@@ -13,6 +13,9 @@ type Server struct {
 	eio       *engineio.Server
 }
 
+// HandlerFunc defines the handler used by callback function
+type HandlerFunc func(*Context)
+
 // NewServer returns a server.
 func NewServer(c *engineio.Options) (*Server, error) {
 	eio, err := engineio.NewServer(c)
@@ -37,28 +40,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // OnConnect set a handler function f to handle open event for
 // namespace nsp.
-func (s *Server) OnConnect(nsp string, f func(Conn) error) {
+func (s *Server) OnConnect(nsp string, f HandlerFunc) {
 	h := s.getNamespace(nsp)
-	h.OnConnect(f)
+	h.onConnect = f
 }
 
 // OnDisconnect set a handler function f to handle disconnect event for
 // namespace nsp.
-func (s *Server) OnDisconnect(nsp string, f func(Conn, string)) {
+func (s *Server) OnDisconnect(nsp string, f HandlerFunc) {
 	h := s.getNamespace(nsp)
-	h.OnDisconnect(f)
+	h.onDisconnect = f
 }
 
 // OnError set a handler function f to handle error for namespace nsp.
-func (s *Server) OnError(nsp string, f func(error)) {
+func (s *Server) OnError(nsp string, f HandlerFunc) {
 	h := s.getNamespace(nsp)
-	h.OnError(f)
+	h.onError = f
 }
 
 // OnEvent set a handler function f to handle event for namespace nsp.
-func (s *Server) OnEvent(nsp, event string, f interface{}) {
+func (s *Server) OnEvent(nsp, event string, f HandlerFunc) {
 	h := s.getNamespace(nsp)
-	h.OnEvent(event, f)
+	h.events[event] = f
 }
 
 // Serve serves go-socket.io server
@@ -112,7 +115,7 @@ func (s *Server) serveConn(c engineio.Conn) {
 	if err != nil {
 		root := s.handlers[""]
 		if root != nil && root.onError != nil {
-			root.onError(err)
+			root.Error(err)
 		}
 		return
 	}

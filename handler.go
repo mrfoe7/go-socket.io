@@ -5,12 +5,25 @@ import (
 	"reflect"
 )
 
-type funcHandler struct {
+// Context is mainly struct in socketio library
+type Context struct {
+	Namespace string //
+	Event     string //
+	Message   string //
+
+	Connect *Conn //
+
+	Errors error //TODO: migrate from gin/gonic
+
 	argTypes []reflect.Type
 	f        reflect.Value
 }
 
-func newEventFunc(f interface{}) *funcHandler {
+func (c *Context) Error(err error) {
+
+}
+
+func newEventFunc(f ...HandlerFunc) {
 	fv := reflect.ValueOf(f)
 	if fv.Kind() != reflect.Func {
 		panic("event handler must be a func.")
@@ -26,13 +39,14 @@ func newEventFunc(f interface{}) *funcHandler {
 	if len(argTypes) == 0 {
 		argTypes = nil
 	}
-	return &funcHandler{
-		argTypes: argTypes,
-		f:        fv,
-	}
+
+	// return &Context{
+	// 	argTypes: argTypes,
+	// 	f:        fv,
+	// }
 }
 
-func newAckFunc(f interface{}) *funcHandler {
+func newAckFunc(f interface{}) *Context {
 	fv := reflect.ValueOf(f)
 	if fv.Kind() != reflect.Func {
 		panic("ack callback must be a func.")
@@ -45,13 +59,14 @@ func newAckFunc(f interface{}) *funcHandler {
 	if len(argTypes) == 0 {
 		argTypes = nil
 	}
-	return &funcHandler{
+	return &Context{
 		argTypes: argTypes,
 		f:        fv,
 	}
 }
 
-func (h *funcHandler) Call(args []reflect.Value) (ret []reflect.Value, err error) {
+// Call
+func (h *Context) Call(args []reflect.Value) (ret []reflect.Value, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			var ok bool
