@@ -14,12 +14,10 @@ type Server struct {
 }
 
 // NewServer returns a server.
-func NewServer(c *engineio.Options) *Server {
-	engine, _ := engineio.NewServer(c)
-
+func NewServer(options *engineio.Options) *Server {
 	return &Server{
 		handlers: make(map[string]*namespaceHandler),
-		engine:   engine,
+		engine:   engineio.NewServer(options),
 	}
 }
 

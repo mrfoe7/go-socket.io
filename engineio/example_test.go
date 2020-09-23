@@ -8,10 +8,8 @@ import (
 )
 
 func ExampleServer() {
-	eio, err := NewServer(nil)
-	if err != nil {
-		log.Fatalln("server error:", err)
-	}
+	eio := NewServer(nil)
+
 	httpSvr := httptest.NewServer(eio)
 	defer httpSvr.Close()
 
@@ -21,8 +19,10 @@ func ExampleServer() {
 			log.Fatalln("accept error:", err)
 			return
 		}
+
 		go func(conn Conn) {
 			defer conn.Close()
+
 			fmt.Println(conn.ID(), conn.RemoteAddr(), "->", conn.LocalAddr(), "with", conn.RemoteHeader())
 
 			for {
@@ -31,25 +31,33 @@ func ExampleServer() {
 					log.Fatalln("read error:", err)
 					return
 				}
+
 				w, err := conn.NextWriter(typ)
 				if err != nil {
 					r.Close()
+
 					log.Fatalln("write error:", err)
+
 					return
 				}
+
 				_, err = io.Copy(w, r)
 				if err != nil {
 					r.Close()
 					w.Close()
+
 					log.Fatalln("copy error:", err)
+
 					return
 				}
 				if err = w.Close(); err != nil {
 					log.Fatalln("close writer error:", err)
+
 					return
 				}
 				if err = r.Close(); err != nil {
 					log.Fatalln("close reader error:", err)
+
 					return
 				}
 			}

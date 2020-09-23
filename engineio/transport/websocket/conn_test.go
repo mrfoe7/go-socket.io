@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/googollee/go-socket.io/engineio/base"
+	"github.com/googollee/go-socket.io/engineio/transport"
 )
 
 func TestWebsocketSetReadDeadline(t *testing.T) {
 	at := assert.New(t)
 
 	tran := &Transport{}
-	conn := make(chan base.Conn, 1)
+	conn := make(chan transport.Conn, 1)
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		c, err := tran.Accept(w, r)
 		require.NoError(t, err)

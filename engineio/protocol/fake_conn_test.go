@@ -1,11 +1,12 @@
-package packet
+package protocol
 
 import (
 	"bytes"
 	"io"
 	"io/ioutil"
 
-	"github.com/googollee/go-socket.io/engineio/base"
+	"github.com/googollee/go-socket.io/engineio/frame"
+	"github.com/googollee/go-socket.io/engineio/packet"
 )
 
 type fakeConnReader struct {
@@ -18,9 +19,9 @@ func newFakeConnReader(frames []Frame) *fakeConnReader {
 	}
 }
 
-func (r *fakeConnReader) NextReader() (base.FrameType, io.ReadCloser, error) {
+func (r *fakeConnReader) NextReader() (frame.Type, io.ReadCloser, error) {
 	if len(r.frames) == 0 {
-		return base.FrameString, nil, io.EOF
+		return frame.String, nil, io.EOF
 	}
 	f := r.frames[0]
 	r.frames = r.frames[1:]
@@ -29,11 +30,11 @@ func (r *fakeConnReader) NextReader() (base.FrameType, io.ReadCloser, error) {
 
 type fakeFrame struct {
 	w    *fakeConnWriter
-	typ  base.FrameType
+	typ  frame.Type
 	data *bytes.Buffer
 }
 
-func newFakeFrame(w *fakeConnWriter, typ base.FrameType) *fakeFrame {
+func newFakeFrame(w *fakeConnWriter, typ frame.Type) *fakeFrame {
 	return &fakeFrame{
 		w:    w,
 		typ:  typ,
@@ -68,7 +69,7 @@ func newFakeConnWriter() *fakeConnWriter {
 	return &fakeConnWriter{}
 }
 
-func (w *fakeConnWriter) NextWriter(typ base.FrameType) (io.WriteCloser, error) {
+func (w *fakeConnWriter) NextWriter(typ frame.Type) (io.WriteCloser, error) {
 	return newFakeFrame(w, typ), nil
 }
 
@@ -82,30 +83,29 @@ func (c *fakeOneFrameConst) Read(p []byte) (int, error) {
 }
 
 type fakeConstReader struct {
-	ft base.FrameType
+	ft frame.Type
 	r  *fakeOneFrameConst
 }
 
 func newFakeConstReader() *fakeConstReader {
 	return &fakeConstReader{
-		ft: base.FrameString,
+		ft: frame.String,
 		r: &fakeOneFrameConst{
-			b: base.MESSAGE.StringByte(),
+			b: packet.MESSAGE.StringByte(),
 		},
 	}
 }
 
-func (r *fakeConstReader) NextReader() (base.FrameType, io.ReadCloser, error) {
-	ft := r.ft
-	switch ft {
-	case base.FrameBinary:
-		r.ft = base.FrameString
-		r.r.b = base.MESSAGE.StringByte()
-	case base.FrameString:
-		r.ft = base.FrameBinary
-		r.r.b = base.MESSAGE.BinaryByte()
+func (r *fakeConstReader) NextReader() (frame.Type, io.ReadCloser, error) {
+	switch r.ft {
+	case frame.Binary:
+		r.ft = frame.String
+		r.r.b = packet.MESSAGE.StringByte()
+	case frame.String:
+		r.ft = frame.Binary
+		r.r.b = packet.MESSAGE.BinaryByte()
 	}
-	return ft, ioutil.NopCloser(r.r), nil
+	return r.ft, ioutil.NopCloser(r.r), nil
 }
 
 type fakeOneFrameDiscarder struct{}
@@ -120,6 +120,6 @@ func (d fakeOneFrameDiscarder) Close() error {
 
 type fakeDiscardWriter struct{}
 
-func (w *fakeDiscardWriter) NextWriter(typ base.FrameType) (io.WriteCloser, error) {
+func (w *fakeDiscardWriter) NextWriter(typ frame.Type) (io.WriteCloser, error) {
 	return fakeOneFrameDiscarder{}, nil
 }

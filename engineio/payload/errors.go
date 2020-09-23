@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// Error is payload error.
-type Error interface {
+// PayloadError is payload error.
+type PayloadError interface {
 	Error() string
 	Temporary() bool
 }
@@ -30,8 +30,8 @@ func (e *OpError) Error() string {
 
 // Temporary returns true if error can retry.
 func (e *OpError) Temporary() bool {
-	if oe, ok := e.Err.(Error); ok {
-		return oe.Temporary()
+	if pe, ok := e.Err.(PayloadError); ok {
+		return pe.Temporary()
 	}
 	return false
 }

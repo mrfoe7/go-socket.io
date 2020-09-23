@@ -11,6 +11,7 @@ import (
 
 func TestWriteBinaryLen(t *testing.T) {
 	at := assert.New(t)
+
 	tests := []struct {
 		l      int64
 		output []byte

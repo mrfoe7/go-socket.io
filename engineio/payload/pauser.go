@@ -11,12 +11,14 @@ const (
 )
 
 type pauser struct {
-	l       sync.Mutex
-	c       *sync.Cond
 	worker  int
+	status  pauserStatus
+
 	pausing chan struct{}
 	paused  chan struct{}
-	status  pauserStatus
+
+	lock       sync.Mutex
+	c       *sync.Cond
 }
 
 func newPauser() *pauser {
@@ -25,13 +27,13 @@ func newPauser() *pauser {
 		paused:  make(chan struct{}),
 		status:  statusNormal,
 	}
-	ret.c = sync.NewCond(&ret.l)
+	ret.c = sync.NewCond(&ret.lock)
 	return ret
 }
 
 func (p *pauser) Pause() bool {
-	p.l.Lock()
-	defer p.l.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	switch p.status {
 	case statusPaused:
@@ -48,7 +50,9 @@ func (p *pauser) Pause() bool {
 	if p.status == statusPaused {
 		return false
 	}
+
 	close(p.paused)
+
 	p.status = statusPaused
 	p.c.Broadcast()
 
@@ -56,41 +60,49 @@ func (p *pauser) Pause() bool {
 }
 
 func (p *pauser) Resume() {
-	p.l.Lock()
-	defer p.l.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	p.status = statusNormal
+
 	p.paused = make(chan struct{})
 	p.pausing = make(chan struct{})
 }
 
 func (p *pauser) Working() bool {
-	p.l.Lock()
-	defer p.l.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	if p.status == statusPaused {
 		return false
 	}
 	p.worker++
+
 	return true
 }
 
 func (p *pauser) Done() {
-	p.l.Lock()
-	defer p.l.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	if p.status == statusPaused || p.worker == 0 {
 		return
 	}
 	p.worker--
+
 	p.c.Broadcast()
 }
 
 func (p *pauser) PausingTrigger() <-chan struct{} {
-	p.l.Lock()
-	defer p.l.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	return p.pausing
 }
 
 func (p *pauser) PausedTrigger() <-chan struct{} {
-	p.l.Lock()
-	defer p.l.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	return p.paused
 }

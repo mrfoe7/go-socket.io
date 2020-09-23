@@ -67,6 +67,7 @@ func (a *Buffer) marshalJSONBuf(buf *bytes.Buffer) error {
 
 func (a *Buffer) encodeText(buf *bytes.Buffer) error {
 	buf.WriteString("{\"type\":\"Buffer\",\"data\":[")
+
 	for i, d := range a.Data {
 		if i > 0 {
 			buf.WriteString(",")

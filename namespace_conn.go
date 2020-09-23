@@ -26,24 +26,24 @@ func newNamespaceConn(conn *conn, namespace string, broadcast Broadcast) *namesp
 	}
 }
 
-func (c *namespaceConn) SetContext(ctx interface{}) {
-	c.context = ctx
+func (nc *namespaceConn) SetContext(ctx interface{}) {
+	nc.context = ctx
 }
 
-func (c *namespaceConn) Context() interface{} {
-	return c.context
+func (nc *namespaceConn) Context() interface{} {
+	return nc.context
 }
 
-func (c *namespaceConn) Namespace() string {
-	return c.namespace
+func (nc *namespaceConn) Namespace() string {
+	return nc.namespace
 }
 
-func (c *namespaceConn) Emit(event string, v ...interface{}) {
+func (nc *namespaceConn) Emit(event string, v ...interface{}) {
 	header := parser.Header{
 		Type: parser.Event,
 	}
-	if c.namespace != aliasRootNamespace {
-		header.Namespace = c.namespace
+	if nc.namespace != aliasRootNamespace {
+		header.Namespace = nc.namespace
 	}
 
 	if l := len(v); l > 0 {
@@ -53,10 +53,10 @@ func (c *namespaceConn) Emit(event string, v ...interface{}) {
 		if lastV.Kind() == reflect.Func {
 			f := newAckFunc(last)
 
-			header.ID = c.conn.nextID()
+			header.ID = nc.conn.nextID()
 			header.NeedAck = true
 
-			c.ack.Store(header.ID, f)
+			nc.ack.Store(header.ID, f)
 			v = v[:l-1]
 		}
 	}
@@ -68,47 +68,47 @@ func (c *namespaceConn) Emit(event string, v ...interface{}) {
 		args[i] = reflect.ValueOf(v[i-1])
 	}
 
-	c.conn.write(header, args)
+	nc.conn.write(header, args)
 }
 
-func (c *namespaceConn) Join(room string) {
-	c.broadcast.Join(room, c)
+func (nc *namespaceConn) Join(room string) {
+	nc.broadcast.Join(room, nc)
 }
 
-func (c *namespaceConn) Leave(room string) {
-	c.broadcast.Leave(room, c)
+func (nc *namespaceConn) Leave(room string) {
+	nc.broadcast.Leave(room, nc)
 }
 
-func (c *namespaceConn) LeaveAll() {
-	c.broadcast.LeaveAll(c)
+func (nc *namespaceConn) LeaveAll() {
+	nc.broadcast.LeaveAll(nc)
 }
 
-func (c *namespaceConn) Rooms() []string {
-	return c.broadcast.Rooms(c)
+func (nc *namespaceConn) Rooms() []string {
+	return nc.broadcast.Rooms(nc)
 }
 
-func (c *namespaceConn) dispatch(header parser.Header) {
+func (nc *namespaceConn) dispatch(header parser.Header) {
 	if header.Type != parser.Ack {
 		return
 	}
 
-	rawFunc, ok := c.ack.Load(header.ID)
+	rawFunc, ok := nc.ack.Load(header.ID)
 	if ok {
 		f, ok := rawFunc.(*funcHandler)
 		if !ok {
-			c.conn.onError(c.namespace, fmt.Errorf("incorrect data stored for header %d", header.ID))
+			nc.conn.onError(nc.namespace, fmt.Errorf("incorrect data stored for header %d", header.ID))
 			return
 		}
 
-		c.ack.Delete(header.ID)
+		nc.ack.Delete(header.ID)
 
-		args, err := c.conn.parseArgs(f.argTypes)
+		args, err := nc.conn.parseArgs(f.argTypes)
 		if err != nil {
-			c.conn.onError(c.namespace, err)
+			nc.conn.onError(nc.namespace, err)
 			return
 		}
 		if _, err := f.Call(args); err != nil {
-			c.conn.onError(c.namespace, err)
+			nc.conn.onError(nc.namespace, err)
 			return
 		}
 	}

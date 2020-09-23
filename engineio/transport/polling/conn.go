@@ -7,33 +7,35 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
-	"github.com/googollee/go-socket.io/engineio/base"
 	"github.com/googollee/go-socket.io/engineio/payload"
+
+	"github.com/googollee/go-socket.io/engineio/transport"
 )
 
 type serverConn struct {
+	transport transport.Transporter
+
 	*payload.Payload
-	transport     *Transport
 	supportBinary bool
 
 	remoteHeader http.Header
-	localAddr    Addr
-	remoteAddr   Addr
+	localAddr    net.Addr
+	remoteAddr   net.Addr
 	url          url.URL
 	jsonp        string
 }
 
-func newServerConn(t *Transport, r *http.Request) base.Conn {
+func newConn(transport transport.Transporter, r *http.Request) transport.Conn {
 	query := r.URL.Query()
 	jsonp := query.Get("j")
-	supportBinary := query.Get("b64") == ""
-	if jsonp != "" {
-		supportBinary = false
-	}
+
+	supportBinary := query.Get("b64") == "" && jsonp == ""
+
 	return &serverConn{
 		Payload:       payload.New(supportBinary),
-		transport:     t,
+		transport:     transport,
 		supportBinary: supportBinary,
 		remoteHeader:  r.Header,
 		localAddr:     Addr{r.Host},
@@ -45,18 +47,6 @@ func newServerConn(t *Transport, r *http.Request) base.Conn {
 
 func (c *serverConn) URL() url.URL {
 	return c.url
-}
-
-func (c *serverConn) LocalAddr() net.Addr {
-	return c.localAddr
-}
-
-func (c *serverConn) RemoteAddr() net.Addr {
-	return c.remoteAddr
-}
-
-func (c *serverConn) RemoteHeader() http.Header {
-	return c.remoteHeader
 }
 
 func (c *serverConn) SetHeaders(w http.ResponseWriter, r *http.Request) {
@@ -137,4 +127,24 @@ func (c *serverConn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "invalid method", http.StatusBadRequest)
 	}
+}
+
+func (c *serverConn) Read(b []byte) (n int, err error) {
+	panic("implement me")
+}
+
+func (c *serverConn) Write(b []byte) (n int, err error) {
+	panic("implement me")
+}
+
+func (c *serverConn) LocalAddr() net.Addr {
+	panic("implement me")
+}
+
+func (c *serverConn) RemoteAddr() net.Addr {
+	panic("implement me")
+}
+
+func (c *serverConn) SetDeadline(t time.Time) error {
+	panic("implement me")
 }

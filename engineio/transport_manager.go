@@ -1,22 +1,12 @@
-package transport
+package engineio
 
 import (
-	"net/http"
-	"net/url"
-
-	"github.com/googollee/go-socket.io/engineio/base"
+	"github.com/googollee/go-socket.io/engineio/transport"
 )
 
 // HTTPError is error which has http response code
 type HTTPError interface {
 	Code() int
-}
-
-// Transport is a transport which can creates base.Conn
-type Transport interface {
-	Name() string
-	Accept(w http.ResponseWriter, r *http.Request) (base.Conn, error)
-	Dial(u *url.URL, requestHeader http.Header) (base.Conn, error)
 }
 
 // Pauser is connection which can be paused and resumes.
@@ -27,26 +17,34 @@ type Pauser interface {
 
 // Opener is client connection which need receive open message first.
 type Opener interface {
-	Open() (base.ConnParameters, error)
+	Open() (transport.ConnParams, error)
+}
+
+type TransportManager interface {
+	Get(name string) transport.Transporter
+	UpgradeFrom(name string) []string
 }
 
 // Manager is a manager of transports.
 type Manager struct {
 	order      []string
-	transports map[string]Transport
+
+	transports map[string]transport.Transporter
 }
 
-// NewManager creates a new manager.
-func NewManager(transports []Transport) *Manager {
-	tranMap := make(map[string]Transport)
+// newTransportManager creates a new manager.
+func newTransportManager(transports []transport.Transporter) *Manager {
+	transpMap := make(map[string]transport.Transporter)
 	names := make([]string, len(transports))
+
 	for i, t := range transports {
 		names[i] = t.Name()
-		tranMap[t.Name()] = t
+		transpMap[t.Name()] = t
 	}
+
 	return &Manager{
 		order:      names,
-		transports: tranMap,
+		transports: transpMap,
 	}
 }
 
@@ -62,6 +60,6 @@ func (m *Manager) UpgradeFrom(name string) []string {
 }
 
 // Get returns the transport with given name.
-func (m *Manager) Get(name string) Transport {
+func (m *Manager) Get(name string) transport.Transporter {
 	return m.transports[name]
 }

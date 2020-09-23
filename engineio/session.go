@@ -1,6 +1,9 @@
 package engineio
 
 import (
+	"github.com/googollee/go-socket.io/engineio/frame"
+	"github.com/googollee/go-socket.io/engineio/packet"
+	"github.com/googollee/go-socket.io/engineio/transport"
 	"io"
 	"net"
 	"net/http"
@@ -8,29 +11,47 @@ import (
 	"sync"
 	"time"
 
-	"github.com/googollee/go-socket.io/engineio/base"
 	"github.com/googollee/go-socket.io/engineio/payload"
-	"github.com/googollee/go-socket.io/engineio/transport"
 )
 
-type session struct {
-	params    base.ConnParameters
-	manager   *manager
-	closeOnce sync.Once
-	context   interface{}
+// Session is connection session.
+type Session interface {
+	io.Closer
+	NextReader() (frame.Type, io.ReadCloser, error)
+	NextWriter(frame.Type) (io.WriteCloser, error)
 
-	upgradeLocker sync.RWMutex
-	transport     string
-	conn          base.Conn
+	GetID() string
+
+	URL() url.URL
+
+	LocalAddr() net.Addr
+	RemoteAddr() net.Addr
+	RemoteHeader() http.Header
+
+	SetContext(v interface{})
+	Context() interface{}
 }
 
-func newSession(m *manager, t string, conn base.Conn, params base.ConnParameters) (*session, error) {
-	params.SID = m.NewID()
+type session struct {
+	conn   transport.Conn
+	params transport.ConnParams
+
+	sessionManager SessionManager
+
+	context   interface{}
+	transport string
+
+	closeOnce sync.Once
+
+	upgradeLocker sync.RWMutex
+}
+
+func newSession(conn transport.Conn, sessionManager SessionManager, params transport.ConnParams, transport string) (*session, error) {
 	ses := &session{
-		transport: t,
-		conn:      conn,
-		params:    params,
-		manager:   m,
+		transport:      transport,
+		conn:           conn,
+		params:         params,
+		sessionManager: sessionManager,
 	}
 
 	if err := ses.setDeadline(); err != nil {
@@ -38,7 +59,7 @@ func newSession(m *manager, t string, conn base.Conn, params base.ConnParameters
 		return nil, err
 	}
 
-	m.Add(ses)
+	sessionManager.Add(ses)
 
 	return ses, nil
 }
@@ -51,21 +72,23 @@ func (s *session) Context() interface{} {
 	return s.context
 }
 
-func (s *session) ID() string {
+func (s *session) GetID() string {
 	return s.params.SID
 }
 
 func (s *session) Transport() string {
 	s.upgradeLocker.RLock()
 	defer s.upgradeLocker.RUnlock()
+
 	return s.transport
 }
 
 func (s *session) Close() error {
 	s.upgradeLocker.RLock()
 	defer s.upgradeLocker.RUnlock()
+
 	s.closeOnce.Do(func() {
-		s.manager.Remove(s.params.SID)
+		s.sessionManager.Remove(s.params.SID)
 	})
 	return s.conn.Close()
 }
@@ -73,18 +96,19 @@ func (s *session) Close() error {
 // NextReader attempts to obtain a ReadCloser from the session's connection.
 // When finished writing, the caller MUST Close the ReadCloser to unlock the
 // connection's FramerReader.
-func (s *session) NextReader() (FrameType, io.ReadCloser, error) {
+func (s *session) NextReader() (frame.Type, io.ReadCloser, error) {
 	for {
 		ft, pt, r, err := s.nextReader()
 		if err != nil {
 			s.Close()
 			return 0, nil, err
 		}
+
 		switch pt {
-		case base.PING:
+		case packet.PING:
 			// Respond to a ping with a pong.
 			err := func() error {
-				w, err := s.nextWriter(ft, base.PONG)
+				w, err := s.nextWriter(ft, packet.PONG)
 				if err != nil {
 					return err
 				}
@@ -103,14 +127,14 @@ func (s *session) NextReader() (FrameType, io.ReadCloser, error) {
 				s.Close()
 				return 0, nil, err
 			}
-		case base.CLOSE:
+		case packet.CLOSE:
 			r.Close() // unlocks the wrapped connection's FrameReader
 			s.Close()
 			return 0, nil, io.EOF
-		case base.MESSAGE:
+		case packet.MESSAGE:
 			// Caller must Close the ReadCloser to unlock the connection's
 			// FrameReader when finished reading.
-			return FrameType(ft), r, nil
+			return ft, r, nil
 		default:
 			// Unknown packet type. Close reader and try again.
 			r.Close()
@@ -121,13 +145,14 @@ func (s *session) NextReader() (FrameType, io.ReadCloser, error) {
 // NextWriter attempts to obtain a WriteCloser from the session's connection.
 // When finished writing, the caller MUST Close the WriteCloser to unlock the
 // connection's FrameWriter.
-func (s *session) NextWriter(typ FrameType) (io.WriteCloser, error) {
-	return s.nextWriter(base.FrameType(typ), base.MESSAGE)
+func (s *session) NextWriter(typ frame.Type) (io.WriteCloser, error) {
+	return s.nextWriter(frame.Type(typ), packet.MESSAGE)
 }
 
 func (s *session) URL() url.URL {
 	s.upgradeLocker.RLock()
 	defer s.upgradeLocker.RUnlock()
+
 	return s.conn.URL()
 }
 
@@ -146,10 +171,11 @@ func (s *session) RemoteAddr() net.Addr {
 func (s *session) RemoteHeader() http.Header {
 	s.upgradeLocker.RLock()
 	defer s.upgradeLocker.RUnlock()
+
 	return s.conn.RemoteHeader()
 }
 
-func (s *session) nextReader() (base.FrameType, base.PacketType, io.ReadCloser, error) {
+func (s *session) nextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
 	for {
 		s.upgradeLocker.RLock()
 		conn := s.conn
@@ -165,7 +191,7 @@ func (s *session) nextReader() (base.FrameType, base.PacketType, io.ReadCloser, 
 	}
 }
 
-func (s *session) nextWriter(ft base.FrameType, pt base.PacketType) (io.WriteCloser, error) {
+func (s *session) nextWriter(ft frame.Type, pt packet.Type) (io.WriteCloser, error) {
 	for {
 		s.upgradeLocker.RLock()
 		conn := s.conn
@@ -177,6 +203,7 @@ func (s *session) nextWriter(ft base.FrameType, pt base.PacketType) (io.WriteClo
 			}
 			return nil, err
 		}
+
 		// Caller must Close the WriteCloser to unlock the connection's
 		// FrameWriter when finished writing.
 		return w, nil
@@ -196,8 +223,8 @@ func (s *session) setDeadline() error {
 	return s.conn.SetWriteDeadline(deadline)
 }
 
-func (s *session) upgrade(transport string, conn base.Conn) {
-	go s.upgrading(transport, conn)
+func (s *session) upgrade(transportType string, conn Connection) {
+	go s.upgrading(transportType, conn)
 }
 
 func (s *session) serveHTTP(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +237,7 @@ func (s *session) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *session) upgrading(t string, conn base.Conn) {
+func (s *session) upgrading(t string, conn Connection) {
 	// Read a ping from the client.
 	err := conn.SetReadDeadline(time.Now().Add(s.params.PingTimeout))
 	if err != nil {
@@ -223,7 +250,8 @@ func (s *session) upgrading(t string, conn base.Conn) {
 		conn.Close()
 		return
 	}
-	if pt != base.PING {
+
+	if pt != packet.PING {
 		r.Close()
 		conn.Close()
 		return
@@ -238,7 +266,7 @@ func (s *session) upgrading(t string, conn base.Conn) {
 		return
 	}
 
-	w, err := conn.NextWriter(ft, base.PONG)
+	w, err := conn.NextWriter(ft, packet.PONG)
 	if err != nil {
 		r.Close()
 		conn.Close()
@@ -265,7 +293,8 @@ func (s *session) upgrading(t string, conn base.Conn) {
 	s.upgradeLocker.RLock()
 	old := s.conn
 	s.upgradeLocker.RUnlock()
-	p, ok := old.(transport.Pauser)
+
+	p, ok := old.(Pauser)
 	if !ok {
 		// old transport doesn't support upgrading
 		conn.Close()
@@ -285,7 +314,7 @@ func (s *session) upgrading(t string, conn base.Conn) {
 		conn.Close()
 		return
 	}
-	if pt != base.UPGRADE {
+	if pt != packet.UPGRADE {
 		r.Close()
 		conn.Close()
 		return

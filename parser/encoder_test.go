@@ -2,24 +2,23 @@ package parser
 
 import (
 	"bytes"
+	"github.com/googollee/go-socket.io/engineio/frame"
 	"io"
 	"reflect"
 	"testing"
-
-	engineio "github.com/googollee/go-socket.io/engineio"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeWriter struct {
-	typ     engineio.FrameType
+	typ     frame.Type
 	current *bytes.Buffer
-	types   []engineio.FrameType
+	types   []frame.Type
 	data    []*bytes.Buffer
 }
 
-func (w *fakeWriter) NextWriter(ft engineio.FrameType) (io.WriteCloser, error) {
+func (w *fakeWriter) NextWriter(ft frame.Type) (io.WriteCloser, error) {
 	w.current = bytes.NewBuffer(nil)
 	w.typ = ft
 
@@ -57,12 +56,12 @@ func TestEncoder(t *testing.T) {
 
 			for i := range w.types {
 				if i == 0 {
-					should.Equal(engineio.TEXT, w.types[i])
+					should.Equal(frame.String, w.types[i])
 					should.Equal(string(test.Data[i]), string(w.data[i].Bytes()))
 					continue
 				}
 
-				should.Equal(engineio.BINARY, w.types[i])
+				should.Equal(frame.Binary, w.types[i])
 				should.Equal(test.Data[i], w.data[i].Bytes())
 			}
 		})

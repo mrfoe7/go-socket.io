@@ -7,8 +7,6 @@ import (
 )
 
 func TestOpError(t *testing.T) {
-	assert := assert.New(t)
-
 	tests := []struct {
 		op        string
 		err       error
@@ -23,11 +21,11 @@ func TestOpError(t *testing.T) {
 		var err error
 		err = newOpError(test.op, test.err)
 
-		assert.Equal(test.errString, err.Error())
+		assert.Equal(t, test.errString, err.Error())
 
-		re, ok := err.(Error)
-		assert.True(ok)
+		re, ok := err.(PayloadError)
+		assert.True(t, ok)
 
-		assert.Equal(test.temporary, re.Temporary())
+		assert.Equal(t, test.temporary, re.Temporary())
 	}
 }

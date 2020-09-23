@@ -1,4 +1,4 @@
-package base
+package transport
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/googollee/go-socket.io/engineio"
 )
 
 type fakeOpError struct {
@@ -43,8 +45,8 @@ func TestOpError(t *testing.T) {
 		{"http://domain/abc", "get(read) from", fakeOpError{false, true}, false, true, "get(read) from http://domain/abc: fake error"},
 	}
 	for _, test := range tests {
-		err := OpErr(test.url, test.op, test.err)
-		e, ok := err.(*OpError)
+		err := engineio.OpErr(test.url, test.op, test.err)
+		e, ok := err.(*engineio.OpError)
 		at.True(ok)
 		at.Equal(test.timeout, e.Timeout())
 		at.Equal(test.temporary, e.Temporary())
@@ -52,33 +54,14 @@ func TestOpError(t *testing.T) {
 	}
 }
 
-func TestFrameType(t *testing.T) {
-	at := assert.New(t)
-	tests := []struct {
-		b    byte
-		typ  FrameType
-		outb byte
-	}{
-		{0, FrameString, 0},
-		{1, FrameBinary, 1},
-	}
-
-	for _, test := range tests {
-		typ := ByteToFrameType(test.b)
-		at.Equal(test.typ, typ)
-		b := typ.Byte()
-		at.Equal(test.outb, b)
-	}
-}
-
 func TestConnParameters(t *testing.T) {
 	at := assert.New(t)
 	tests := []struct {
-		para ConnParameters
+		params ConnParams
 		out  string
 	}{
 		{
-			ConnParameters{
+			ConnParams{
 				time.Second * 10,
 				time.Second * 5,
 				"vCcJKmYQcIf801WDAAAB",
@@ -89,27 +72,29 @@ func TestConnParameters(t *testing.T) {
 	}
 	for _, test := range tests {
 		buf := bytes.NewBuffer(nil)
-		n, err := test.para.WriteTo(buf)
+
+		n, err := test.params.WriteTo(buf)
 		at.Nil(err)
 		at.Equal(int64(len(test.out)), n)
 		at.Equal(test.out, buf.String())
 
 		conn, err := ReadConnParameters(buf)
 		at.Nil(err)
-		at.Equal(test.para, conn)
+		at.Equal(test.params, conn)
 	}
 }
 
 func BenchmarkConnParameters(b *testing.B) {
-	param := ConnParameters{
+	param := ConnParams{
 		time.Second * 10,
 		time.Second * 5,
 		"vCcJKmYQcIf801WDAAAB",
 		[]string{"websocket", "polling"},
 	}
-	discarder := ioutil.Discard
+
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
-		param.WriteTo(discarder)
+		_, _ = param.WriteTo(ioutil.Discard)
 	}
 }

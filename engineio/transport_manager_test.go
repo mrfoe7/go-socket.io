@@ -1,11 +1,10 @@
-package transport
+package engineio
 
 import (
+	"github.com/googollee/go-socket.io/engineio/transport"
 	"net/http"
 	"net/url"
 	"testing"
-
-	"github.com/googollee/go-socket.io/engineio/base"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,22 +17,27 @@ func (f fakeTransport) Name() string {
 	return f.name
 }
 
-func (f fakeTransport) Dial(url *url.URL, header http.Header) (base.Conn, error) {
+func (f fakeTransport) Dial(*url.URL, http.Header) (transport.Conn, error) {
 	return nil, nil
 }
 
-func (f fakeTransport) Accept(http.ResponseWriter, *http.Request) (base.Conn, error) {
+func (f fakeTransport) Accept(http.ResponseWriter, *http.Request) (transport.Conn, error) {
 	return nil, nil
 }
 
 func TestManager(t *testing.T) {
 	at := assert.New(t)
+
 	t1 := fakeTransport{"t1"}
 	t2 := fakeTransport{"t2"}
 	t3 := fakeTransport{"t3"}
 	t4 := fakeTransport{"t4"}
 
-	m := NewManager([]Transport{t1, t2, t3, t4})
+	m := newTransportManager(
+		[]transport.Transporter{
+			t1, t2, t3, t4,
+		},
+	)
 
 	tg := m.Get("t1")
 	at.Equal(t1, tg)

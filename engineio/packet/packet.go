@@ -1,11 +1,11 @@
-package base
+package packet
 
 // PacketType is the type of packet
-type PacketType int
+type Type int
 
 const (
 	// OPEN is sent from the server when a new transport is opened (recheck).
-	OPEN PacketType = iota
+	OPEN Type = iota
 	// CLOSE is request the close of this transport but does not shutdown the
 	// connection itself.
 	CLOSE
@@ -27,7 +27,7 @@ const (
 	NOOP
 )
 
-func (id PacketType) String() string {
+func (id Type) String() string {
 	switch id {
 	case OPEN:
 		return "open"
@@ -48,19 +48,11 @@ func (id PacketType) String() string {
 }
 
 // StringByte converts a PacketType to byte in string.
-func (id PacketType) StringByte() byte {
+func (id Type) StringByte() byte {
 	return byte(id) + '0'
 }
 
 // BinaryByte converts a PacketType to byte in binary.
-func (id PacketType) BinaryByte() byte {
+func (id Type) BinaryByte() byte {
 	return byte(id)
-}
-
-// ByteToPacketType converts a byte to PacketType.
-func ByteToPacketType(b byte, typ FrameType) PacketType {
-	if typ == FrameString {
-		b -= '0'
-	}
-	return PacketType(b)
 }

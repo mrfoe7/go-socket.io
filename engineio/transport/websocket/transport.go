@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/googollee/go-socket.io/engineio/base"
-
 	"github.com/gorilla/websocket"
+
+	"github.com/googollee/go-socket.io/engineio/transport"
 )
 
 // DialError is the error when dialing to a server. It saves Response from
@@ -23,12 +23,14 @@ type DialError struct {
 type Transport struct {
 	ReadBufferSize   int
 	WriteBufferSize  int
+
+	HandshakeTimeout time.Duration
+	TLSClientConfig  *tls.Config
+	Subprotocols     []string
+
+	CheckOrigin      func(r *http.Request) bool
 	NetDial          func(network, addr string) (net.Conn, error)
 	Proxy            func(*http.Request) (*url.URL, error)
-	TLSClientConfig  *tls.Config
-	HandshakeTimeout time.Duration
-	Subprotocols     []string
-	CheckOrigin      func(r *http.Request) bool
 }
 
 // Default is default transport.
@@ -39,8 +41,24 @@ func (t *Transport) Name() string {
 	return "websocket"
 }
 
+// Accept accepts a http request and create Conn.
+func (t *Transport) Accept(w http.ResponseWriter, r *http.Request) (transport.Conn, error) {
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  t.ReadBufferSize,
+		WriteBufferSize: t.WriteBufferSize,
+		CheckOrigin:     t.CheckOrigin,
+	}
+
+	c, err := upgrader.Upgrade(w, r, w.Header())
+	if err != nil {
+		return nil, err
+	}
+
+	return newConn(c, r.URL, r.Header), nil
+}
+
 // Dial creates a new client connection.
-func (t *Transport) Dial(u *url.URL, requestHeader http.Header) (base.Conn, error) {
+func (t *Transport) Dial(u url.URL, header http.Header) (transport.Conn, error) {
 	dialer := websocket.Dialer{
 		ReadBufferSize:   t.ReadBufferSize,
 		WriteBufferSize:  t.WriteBufferSize,
@@ -50,17 +68,21 @@ func (t *Transport) Dial(u *url.URL, requestHeader http.Header) (base.Conn, erro
 		HandshakeTimeout: t.HandshakeTimeout,
 		Subprotocols:     t.Subprotocols,
 	}
+
 	switch u.Scheme {
 	case "http":
 		u.Scheme = "ws"
 	case "https":
 		u.Scheme = "wss"
 	}
+
 	query := u.Query()
 	query.Set("transport", t.Name())
-	query.Set("t", base.Timestamp())
+	query.Set("t", transport.Timestamp())
+
 	u.RawQuery = query.Encode()
-	c, resp, err := dialer.Dial(u.String(), requestHeader)
+
+	c, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
 		return nil, DialError{
 			error:    err,
@@ -68,20 +90,5 @@ func (t *Transport) Dial(u *url.URL, requestHeader http.Header) (base.Conn, erro
 		}
 	}
 
-	return newConn(c, *u, resp.Header), nil
-}
-
-// Accept accepts a http request and create Conn.
-func (t *Transport) Accept(w http.ResponseWriter, r *http.Request) (base.Conn, error) {
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  t.ReadBufferSize,
-		WriteBufferSize: t.WriteBufferSize,
-		CheckOrigin:     t.CheckOrigin,
-	}
-	c, err := upgrader.Upgrade(w, r, w.Header())
-	if err != nil {
-		return nil, err
-	}
-
-	return newConn(c, *r.URL, r.Header), nil
+	return newConn(c, &u, resp.Header), nil
 }

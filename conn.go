@@ -1,13 +1,12 @@
 package socketio
 
 import (
+	"github.com/googollee/go-socket.io/engineio/transport"
 	"net"
 	"net/http"
 	"net/url"
 	"reflect"
 	"sync"
-
-	engineio "github.com/googollee/go-socket.io/engineio"
 
 	"github.com/googollee/go-socket.io/parser"
 )
@@ -45,7 +44,7 @@ type writePacket struct {
 }
 
 type conn struct {
-	engineio.Conn
+	transport.Connect
 
 	id         uint64
 	handlers   map[string]*namespaceHandler
@@ -61,11 +60,11 @@ type conn struct {
 	closeOnce sync.Once
 }
 
-func newConn(c engineio.Conn, handlers map[string]*namespaceHandler) error {
+func newConn(connect transport.Connect, handlers map[string]*namespaceHandler) error {
 	ret := &conn{
-		Conn:       c,
-		encoder:    parser.NewEncoder(c),
-		decoder:    parser.NewDecoder(c),
+		Connect:       connect,
+		encoder:    parser.NewEncoder(connect),
+		decoder:    parser.NewDecoder(connect),
 		errorChan:  make(chan error),
 		writeChan:  make(chan writePacket),
 		quitChan:   make(chan struct{}),
@@ -93,7 +92,7 @@ func (c *conn) Close() error {
 				nh.onDisconnect(nc, clientDisconnectMsg)
 			}
 		}
-		err = c.Conn.Close()
+		err = c.Close()
 
 		close(c.quitChan)
 	})
@@ -104,16 +103,16 @@ func (c *conn) Close() error {
 func (c *conn) connect() error {
 	rootHandler, ok := c.handlers[rootNamespace]
 	if !ok {
-		return errUnavailableRootHandler
+		return errRootNamespaceHandler
 	}
 
 	root := newNamespaceConn(c, aliasRootNamespace, rootHandler.broadcast)
 	c.namespaces[rootNamespace] = root
 
-	root.Join(root.ID())
+	root.Join(root.GetID())
 
 	for _, ns := range c.namespaces {
-		ns.SetContext(c.Conn.Context())
+		ns.SetContext(c.Connect.Context())
 	}
 
 	header := parser.Header{
@@ -276,7 +275,7 @@ func (c *conn) serveRead() {
 
 				//todo leave default room?!
 			} else {
-				c.onError(header.Namespace, errFailedConnetNamespace)
+				c.onError(header.Namespace, errFailedConnectNamespace)
 				return
 			}
 			c.write(header, nil)

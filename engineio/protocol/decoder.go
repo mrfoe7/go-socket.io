@@ -1,9 +1,11 @@
-package packet
+package protocol
 
 import (
 	"io"
 
-	"github.com/googollee/go-socket.io/engineio/base"
+	"github.com/googollee/go-socket.io/engineio/frame"
+	"github.com/googollee/go-socket.io/engineio/packet"
+	"github.com/googollee/go-socket.io/engineio/utils"
 )
 
 type decoder struct {
@@ -16,7 +18,7 @@ func newDecoder(r FrameReader) *decoder {
 	}
 }
 
-func (e *decoder) NextReader() (base.FrameType, base.PacketType, io.ReadCloser, error) {
+func (e *decoder) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
 	ft, r, err := e.r.NextReader()
 	if err != nil {
 		return 0, 0, nil, err
@@ -26,5 +28,5 @@ func (e *decoder) NextReader() (base.FrameType, base.PacketType, io.ReadCloser, 
 		_ = r.Close()
 		return 0, 0, nil, err
 	}
-	return ft, base.ByteToPacketType(b[0], ft), r, nil
+	return ft, utils.ByteToPacketType(b[0], ft), r, nil
 }

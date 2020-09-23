@@ -1,9 +1,13 @@
-package polling
+package todo
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/googollee/go-socket.io/engineio/packet"
+	"github.com/googollee/go-socket.io/engineio/transport"
+	"github.com/googollee/go-socket.io/engineio/transport/polling"
+	"github.com/googollee/go-socket.io/engineio/utils"
 	"io"
 	"io/ioutil"
 	"net"
@@ -11,7 +15,6 @@ import (
 	"net/url"
 	"sync/atomic"
 
-	"github.com/googollee/go-socket.io/engineio/base"
 	"github.com/googollee/go-socket.io/engineio/payload"
 )
 
@@ -23,17 +26,19 @@ type clientConn struct {
 	remoteHeader atomic.Value
 }
 
-func dial(client *http.Client, url *url.URL, requestHeader http.Header) (*clientConn, error) {
+func dial(client *http.Client, url *url.URL, header http.Header) (*clientConn, error) {
 	if client == nil {
 		client = &http.Client{}
 	}
+
 	req, err := http.NewRequest("", url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range requestHeader {
+	for k, v := range header {
 		req.Header[k] = v
 	}
+
 	supportBinary := req.URL.Query().Get("b64") == ""
 	if supportBinary {
 		req.Header.Set("Content-Type", "application/octet-stream")
@@ -46,28 +51,33 @@ func dial(client *http.Client, url *url.URL, requestHeader http.Header) (*client
 		httpClient: client,
 		request:    *req,
 	}
+
 	return ret, nil
 }
 
-func (c *clientConn) Open() (base.ConnParameters, error) {
+func (c *clientConn) Open() (transport.ConnParams, error) {
 	go c.getOpen()
 
 	_, pt, r, err := c.NextReader()
 	if err != nil {
-		return base.ConnParameters{}, err
+		return transport.ConnParams{}, err
 	}
-	if pt != base.OPEN {
+	if pt != packet.OPEN {
 		r.Close()
-		return base.ConnParameters{}, errors.New("invalid open")
+
+		return transport.ConnParams{}, errors.New("invalid open")
 	}
-	conn, err := base.ReadConnParameters(r)
+
+	conn, err := transport.ReadConnParameters(r)
+
 	if err != nil {
 		r.Close()
-		return base.ConnParameters{}, err
+		return transport.ConnParams{}, err
 	}
+
 	err = r.Close()
 	if err != nil {
-		return base.ConnParameters{}, err
+		return transport.ConnParams{}, err
 	}
 	query := c.request.URL.Query()
 	query.Set("sid", conn.SID)
@@ -84,11 +94,11 @@ func (c *clientConn) URL() url.URL {
 }
 
 func (c *clientConn) LocalAddr() net.Addr {
-	return Addr{""}
+	return polling.Addr{""}
 }
 
 func (c *clientConn) RemoteAddr() net.Addr {
-	return Addr{c.request.Host}
+	return polling.Addr{c.request.Host}
 }
 
 func (c *clientConn) RemoteHeader() http.Header {
@@ -107,18 +117,22 @@ func (c *clientConn) Resume() {
 
 func (c *clientConn) servePost() {
 	var buf bytes.Buffer
+
 	req := c.request
 	url := *req.URL
+
 	req.URL = &url
 	query := url.Query()
+
 	req.Method = "POST"
 	req.Body = ioutil.NopCloser(&buf)
+
 	for {
 		buf.Reset()
 		if err := c.Payload.FlushOut(&buf); err != nil {
 			return
 		}
-		query.Set("t", base.Timestamp())
+		query.Set("t", utils.Timestamp())
 		req.URL.RawQuery = query.Encode()
 		resp, err := c.httpClient.Do(&req)
 		if err != nil {
@@ -143,7 +157,7 @@ func (c *clientConn) getOpen() {
 	url := *req.URL
 	req.URL = &url
 	req.Method = "GET"
-	query.Set("t", base.Timestamp())
+	query.Set("t", utils.Timestamp())
 	req.URL.RawQuery = query.Encode()
 	resp, err := c.httpClient.Do(&req)
 	if err != nil {
@@ -161,7 +175,7 @@ func (c *clientConn) getOpen() {
 	var supportBinary bool
 	if err == nil {
 		mime := resp.Header.Get("Content-Type")
-		supportBinary, err = mimeSupportBinary(mime)
+		supportBinary, err = polling.mimeSupportBinary(mime)
 	}
 	if err != nil {
 		c.Payload.Store("get", err)
@@ -181,7 +195,7 @@ func (c *clientConn) serveGet() {
 	req.URL = &url
 	req.Method = "GET"
 	for {
-		query.Set("t", base.Timestamp())
+		query.Set("t", utils.Timestamp())
 		req.URL.RawQuery = query.Encode()
 		resp, err := c.httpClient.Do(&req)
 		if err != nil {
@@ -195,7 +209,7 @@ func (c *clientConn) serveGet() {
 		var supportBinary bool
 		if err == nil {
 			mime := resp.Header.Get("Content-Type")
-			supportBinary, err = mimeSupportBinary(mime)
+			supportBinary, err = polling.mimeSupportBinary(mime)
 		}
 		if err != nil {
 			io.Copy(ioutil.Discard, resp.Body)

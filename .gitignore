@@ -1,8 +1,14 @@
+#dir
 /bin
 /vendor
 /vendor.pb
-.DS_STORE
 /.idea
 /.vscode
+*/node_modules
+
+#file
+.DS_STORE
 *.o
 profile.cov
+*.prof
+*.svg

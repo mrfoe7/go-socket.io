@@ -3,23 +3,23 @@ package engineio
 import (
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
-	"github.com/googollee/go-socket.io/engineio/base"
+	"github.com/googollee/go-socket.io/engineio/frame"
+	"github.com/googollee/go-socket.io/engineio/packet"
 	"github.com/googollee/go-socket.io/engineio/transport"
 )
 
 // Dialer is dialer configure.
 type Dialer struct {
-	Transports []transport.Transport
+	Transports []transport.Transporter
 }
 
 // Dial returns a connection which dials to url with requestHeader.
-func (d *Dialer) Dial(urlStr string, requestHeader http.Header) (Conn, error) {
+func (d *Dialer) Dial(urlStr string, requestHeader http.Header) (transport.Conn, error) {
 	u, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,9 @@ func (d *Dialer) Dial(urlStr string, requestHeader http.Header) (Conn, error) {
 	query := u.Query()
 	query.Set("EIO", "3")
 	u.RawQuery = query.Encode()
-	var conn base.Conn
+
+	var conn transport.Conn
+
 	for i := len(d.Transports) - 1; i >= 0; i-- {
 		if conn != nil {
 			conn.Close()
@@ -37,14 +39,14 @@ func (d *Dialer) Dial(urlStr string, requestHeader http.Header) (Conn, error) {
 		if err != nil {
 			continue
 		}
-		var params base.ConnParameters
-		if p, ok := conn.(transport.Opener); ok {
+		var params transport.ConnParams
+		if p, ok := conn.(Opener); ok {
 			params, err = p.Open()
 			if err != nil {
 				continue
 			}
 		} else {
-			var pt base.PacketType
+			var pt packet.Type
 			var r io.ReadCloser
 			_, pt, r, err = conn.NextReader()
 			if err != nil {
@@ -52,11 +54,11 @@ func (d *Dialer) Dial(urlStr string, requestHeader http.Header) (Conn, error) {
 			}
 			func() {
 				defer r.Close()
-				if pt != base.OPEN {
+				if pt != packet.OPEN {
 					err = errors.New("invalid open")
 					return
 				}
-				params, err = base.ReadConnParameters(r)
+				params, err = transport.ReadConnParameters(r)
 				if err != nil {
 					return
 				}
@@ -65,24 +67,31 @@ func (d *Dialer) Dial(urlStr string, requestHeader http.Header) (Conn, error) {
 		if err != nil {
 			continue
 		}
+
 		ret := &client{
 			conn:      conn,
 			params:    params,
 			transport: t.Name(),
 			close:     make(chan struct{}),
 		}
+
 		go ret.serve()
+
 		return ret, nil
 	}
+
 	return nil, err
 }
 
 type client struct {
-	conn      base.Conn
-	params    base.ConnParameters
+	conn   transport.Conn
+	params transport.ConnParams
+
 	transport string
+
 	context   interface{}
 	close     chan struct{}
+
 	closeOnce sync.Once
 }
 
@@ -106,57 +115,50 @@ func (c *client) Close() error {
 	c.closeOnce.Do(func() {
 		close(c.close)
 	})
+
 	return c.conn.Close()
 }
 
-func (c *client) NextReader() (FrameType, io.ReadCloser, error) {
+func (c *client) NextReader() (frame.Type, io.ReadCloser, error) {
 	for {
 		ft, pt, r, err := c.conn.NextReader()
 		if err != nil {
 			return 0, nil, err
 		}
+
 		switch pt {
-		case base.PONG:
+		case packet.PONG:
 			c.conn.SetReadDeadline(time.Now().Add(c.params.PingInterval + c.params.PingTimeout))
-		case base.CLOSE:
+		case packet.CLOSE:
 			c.Close()
 			return 0, nil, io.EOF
-		case base.MESSAGE:
-			return FrameType(ft), r, nil
+		case packet.MESSAGE:
+			return ft, r, nil
 		}
+
 		r.Close()
 	}
 }
 
-func (c *client) NextWriter(typ FrameType) (io.WriteCloser, error) {
-	return c.conn.NextWriter(base.FrameType(typ), base.MESSAGE)
+func (c *client) NextWriter(typ frame.Type) (io.WriteCloser, error) {
+	return c.conn.NextWriter(typ, packet.MESSAGE)
 }
 
 func (c *client) URL() url.URL {
 	return c.conn.URL()
 }
 
-func (c *client) LocalAddr() net.Addr {
-	return c.conn.LocalAddr()
-}
-
-func (c *client) RemoteAddr() net.Addr {
-	return c.conn.RemoteAddr()
-}
-
-func (c *client) RemoteHeader() http.Header {
-	return c.conn.RemoteHeader()
-}
-
 func (c *client) serve() {
 	defer c.conn.Close()
+
 	for {
 		select {
 		case <-c.close:
 			return
 		case <-time.After(c.params.PingInterval):
 		}
-		w, err := c.conn.NextWriter(base.FrameString, base.PING)
+
+		w, err := c.conn.NextWriter(frame.String, packet.PING)
 		if err != nil {
 			return
 		}

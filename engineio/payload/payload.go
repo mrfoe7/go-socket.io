@@ -2,13 +2,13 @@ package payload
 
 import (
 	"fmt"
+	"github.com/googollee/go-socket.io/engineio/frame"
+	"github.com/googollee/go-socket.io/engineio/packet"
 	"io"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/googollee/go-socket.io/engineio/base"
 )
 
 type readArg struct {
@@ -18,23 +18,25 @@ type readArg struct {
 
 // Payload does encode or decode to payload protocol.
 type Payload struct {
-	close     chan struct{}
-	closeOnce sync.Once
-	err       atomic.Value
-
 	pauser *pauser
 
-	readerChan   chan readArg
+	decoder      decoder
 	feeding      int32
+	readerChan   chan readArg
 	readError    chan error
 	readDeadline atomic.Value
-	decoder      decoder
 
-	writerChan    chan io.Writer
+
+	encoder       encoder
 	flushing      int32
+	writerChan    chan io.Writer
 	writeError    chan error
 	writeDeadline atomic.Value
-	encoder       encoder
+
+	close     chan struct{}
+	err       atomic.Value
+
+	closeOnce sync.Once
 }
 
 // New returns a new payload.
@@ -47,11 +49,15 @@ func New(supportBinary bool) *Payload {
 		writerChan: make(chan io.Writer),
 		writeError: make(chan error),
 	}
+
 	ret.readDeadline.Store(time.Time{})
 	ret.decoder.feeder = ret
+
 	ret.writeDeadline.Store(time.Time{})
-	ret.encoder.supportBinary = supportBinary
 	ret.encoder.feeder = ret
+
+	ret.encoder.supportBinary = supportBinary
+
 	return ret
 }
 
@@ -126,6 +132,7 @@ func (p *Payload) FlushOut(w io.Writer) error {
 		return p.load()
 	default:
 	}
+
 	if !atomic.CompareAndSwapInt32(&p.flushing, 0, 1) {
 		return newOpError("write", errOverlap)
 	}
@@ -135,6 +142,7 @@ func (p *Payload) FlushOut(w io.Writer) error {
 		_, err := w.Write(p.encoder.NOOP())
 		return err
 	}
+
 	defer p.pauser.Done()
 
 	for {
@@ -175,7 +183,7 @@ func (p *Payload) FlushOut(w io.Writer) error {
 // If Close called when NextReader,  it return io.EOF.
 // Pause doesn't effect to NextReader. NextReader should wait till resumed
 // and next FeedIn.
-func (p *Payload) NextReader() (base.FrameType, base.PacketType, io.ReadCloser, error) {
+func (p *Payload) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
 	ft, pt, r, err := p.decoder.NextReader()
 	return ft, pt, r, err
 }
@@ -201,7 +209,7 @@ func (p *Payload) SetReadDeadline(t time.Time) error {
 // If Close called when NextWriter,  it returns io.EOF.
 // If beyond the time set by SetWriteDeadline, it returns ErrTimeout.
 // If Pause called when NextWriter, it returns ErrPaused.
-func (p *Payload) NextWriter(ft base.FrameType, pt base.PacketType) (io.WriteCloser, error) {
+func (p *Payload) NextWriter(ft frame.Type, pt packet.Type) (io.WriteCloser, error) {
 	return p.encoder.NextWriter(ft, pt)
 }
 

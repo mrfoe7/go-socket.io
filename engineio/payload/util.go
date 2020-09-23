@@ -24,6 +24,7 @@ func writeBinaryLen(l int64, w *bytes.Buffer) error {
 		l -= n * max
 		max /= 10
 	}
+
 	return w.WriteByte(0xff)
 }
 
@@ -67,11 +68,13 @@ func readBinaryLen(r byteReader) (int64, error) {
 		}
 		ret = ret*10 + int64(b)
 	}
+
 	return ret, nil
 }
 
 func readTextLen(r byteReader) (int64, error) {
 	ret := int64(0)
+
 	for {
 		b, err := r.ReadByte()
 		if err != nil {
@@ -85,5 +88,6 @@ func readTextLen(r byteReader) (int64, error) {
 		}
 		ret = ret*10 + int64(b-'0')
 	}
+
 	return ret, nil
 }

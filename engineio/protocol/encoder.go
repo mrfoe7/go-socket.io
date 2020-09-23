@@ -1,9 +1,10 @@
-package packet
+package protocol
 
 import (
 	"io"
 
-	"github.com/googollee/go-socket.io/engineio/base"
+	"github.com/googollee/go-socket.io/engineio/frame"
+	"github.com/googollee/go-socket.io/engineio/packet"
 )
 
 type encoder struct {
@@ -16,13 +17,14 @@ func newEncoder(w FrameWriter) *encoder {
 	}
 }
 
-func (e *encoder) NextWriter(ft base.FrameType, pt base.PacketType) (io.WriteCloser, error) {
+func (e *encoder) NextWriter(ft frame.Type, pt packet.Type) (io.WriteCloser, error) {
 	w, err := e.w.NextWriter(ft)
 	if err != nil {
 		return nil, err
 	}
 	var b [1]byte
-	if ft == base.FrameString {
+
+	if ft == frame.String {
 		b[0] = pt.StringByte()
 	} else {
 		b[0] = pt.BinaryByte()
