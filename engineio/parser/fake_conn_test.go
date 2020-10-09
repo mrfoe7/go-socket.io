@@ -1,4 +1,4 @@
-package protocol
+package parser
 
 import (
 	"bytes"
@@ -19,12 +19,13 @@ func newFakeConnReader(frames []Frame) *fakeConnReader {
 	}
 }
 
-func (r *fakeConnReader) NextReader() (frame.Type, io.ReadCloser, error) {
+func (r *fakeConnReader) FrameRead() (frame.Type, io.ReadCloser, error) {
 	if len(r.frames) == 0 {
 		return frame.String, nil, io.EOF
 	}
 	f := r.frames[0]
 	r.frames = r.frames[1:]
+
 	return f.typ, ioutil.NopCloser(bytes.NewReader(f.data)), nil
 }
 
@@ -69,7 +70,7 @@ func newFakeConnWriter() *fakeConnWriter {
 	return &fakeConnWriter{}
 }
 
-func (w *fakeConnWriter) NextWriter(typ frame.Type) (io.WriteCloser, error) {
+func (w *fakeConnWriter)FrameWrite(typ frame.Type) (io.WriteCloser, error) {
 	return newFakeFrame(w, typ), nil
 }
 
@@ -96,7 +97,7 @@ func newFakeConstReader() *fakeConstReader {
 	}
 }
 
-func (r *fakeConstReader) NextReader() (frame.Type, io.ReadCloser, error) {
+func (r *fakeConstReader) FrameRead() (frame.Type, io.ReadCloser, error) {
 	switch r.ft {
 	case frame.Binary:
 		r.ft = frame.String
@@ -105,6 +106,7 @@ func (r *fakeConstReader) NextReader() (frame.Type, io.ReadCloser, error) {
 		r.ft = frame.Binary
 		r.r.b = packet.MESSAGE.BinaryByte()
 	}
+
 	return r.ft, ioutil.NopCloser(r.r), nil
 }
 
@@ -120,6 +122,6 @@ func (d fakeOneFrameDiscarder) Close() error {
 
 type fakeDiscardWriter struct{}
 
-func (w *fakeDiscardWriter) NextWriter(typ frame.Type) (io.WriteCloser, error) {
+func (w *fakeDiscardWriter) FrameWrite(frame.Type) (io.WriteCloser, error) {
 	return fakeOneFrameDiscarder{}, nil
 }

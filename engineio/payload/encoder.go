@@ -13,7 +13,7 @@ type writerFeeder interface {
 	putWriter(error) error
 }
 
-type encoder struct {
+type Encoder struct {
 	supportBinary bool
 	feeder        writerFeeder
 
@@ -25,14 +25,14 @@ type encoder struct {
 	rawWriter  io.Writer
 }
 
-func (e *encoder) NOOP() []byte {
+func (e *Encoder) NOOP() []byte {
 	if e.supportBinary {
 		return []byte{0x00, 0x01, 0xff, '6'}
 	}
 	return []byte("1:6")
 }
 
-func (e *encoder) NextWriter(ft frame.Type, pt packet.Type) (io.WriteCloser, error) {
+func (e *Encoder) NextWriter(ft frame.Type, pt packet.Type) (io.WriteCloser, error) {
 	w, err := e.feeder.getWriter()
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (e *encoder) NextWriter(ft frame.Type, pt packet.Type) (io.WriteCloser, err
 	return e, nil
 }
 
-func (e *encoder) Write(p []byte) (int, error) {
+func (e *Encoder) Write(p []byte) (int, error) {
 	if e.b64Writer != nil {
 		return e.b64Writer.Write(p)
 	}
@@ -60,7 +60,7 @@ func (e *encoder) Write(p []byte) (int, error) {
 
 type writeHeaderFunc func() error
 
-func (e *encoder) Close() error {
+func (e *Encoder) Close() error {
 	if e.b64Writer != nil {
 		e.b64Writer.Close()
 	}
@@ -92,7 +92,7 @@ func (e *encoder) Close() error {
 	return err
 }
 
-func (e *encoder) writeTextHeader() error {
+func (e *Encoder) writeTextHeader() error {
 	l := int64(e.frameCache.Len() + 1) // length for packet type
 	err := writeTextLen(l, &e.header)
 	if err == nil {
@@ -101,7 +101,7 @@ func (e *encoder) writeTextHeader() error {
 	return err
 }
 
-func (e *encoder) writeB64Header() error {
+func (e *Encoder) writeB64Header() error {
 	l := int64(e.frameCache.Len() + 2) // length for 'b' and packet type
 	err := writeTextLen(l, &e.header)
 	if err == nil {
@@ -114,7 +114,7 @@ func (e *encoder) writeB64Header() error {
 	return err
 }
 
-func (e *encoder) writeBinaryHeader() error {
+func (e *Encoder) writeBinaryHeader() error {
 	l := int64(e.frameCache.Len() + 1) // length for packet type
 	b := e.pt.StringByte()
 

@@ -42,15 +42,16 @@ func TestEncoder(t *testing.T) {
 
 	for _, test := range tests {
 		buf.Reset()
-		e := encoder{
+		e := Encoder{
 			supportBinary: test.supportBinary,
 			feeder:        f,
 		}
 
-		for _, packet := range test.packets {
-			fw, err := e.NextWriter(packet.ft, packet.pt)
+		for _, p := range test.packets {
+			fw, err := e.NextWriter(p.ft, p.pt)
 			must.Nil(err)
-			_, err = fw.Write(packet.data)
+
+			_, err = fw.Write(p.data)
 			must.Nil(err)
 			err = fw.Close()
 			must.Nil(err)
@@ -65,13 +66,13 @@ func TestEncoderBeginError(t *testing.T) {
 	f := &fakeWriterFeeder{
 		w: buf,
 	}
-	e := encoder{
+	e := Encoder{
 		supportBinary: true,
 		feeder:        f,
 	}
 
 	buf.Reset()
-	targetErr := newOpError("payload", errPaused)
+	targetErr := newOpError(payload, errPaused)
 	f.returnError = targetErr
 
 	_, err := e.NextWriter(frame.Binary, packet.OPEN)
@@ -88,13 +89,14 @@ func (f *errorWrite) Write(p []byte) (int, error) {
 
 func TestEncoderEndError(t *testing.T) {
 	must := require.New(t)
+
 	werr := errors.New("write error")
 	f := &fakeWriterFeeder{
 		w: &errorWrite{
 			err: werr,
 		},
 	}
-	e := encoder{
+	e := Encoder{
 		supportBinary: true,
 		feeder:        f,
 	}
@@ -119,7 +121,7 @@ func TestEncoderNOOP(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		e := encoder{
+		e := Encoder{
 			supportBinary: test.supportBinary,
 		}
 		assert.Equal(t, test.data, e.NOOP())
@@ -128,11 +130,12 @@ func TestEncoderNOOP(t *testing.T) {
 	// NOOP should be thread-safe
 	var wg sync.WaitGroup
 	max := 100
-	wg.Add(100)
+	wg.Add(max)
+
 	for i := 0; i < max; i++ {
 		go func(i int) {
 			defer wg.Done()
-			e := encoder{
+			e := Encoder{
 				supportBinary: i&0x1 == 0,
 			}
 			e.NOOP()
@@ -148,7 +151,8 @@ func BenchmarkStringEncoder(b *testing.B) {
 		{frame.String, packet.MESSAGE, []byte("你好\n")},
 		{frame.String, packet.PING, []byte("probe")},
 	}
-	e := encoder{
+
+	e := Encoder{
 		supportBinary: false,
 		feeder: &fakeWriterFeeder{
 			w: ioutil.Discard,
@@ -159,8 +163,10 @@ func BenchmarkStringEncoder(b *testing.B) {
 	for _, p := range packets {
 		f, err := e.NextWriter(p.ft, p.pt)
 		must.Nil(err)
+
 		_, err = f.Write(p.data)
 		must.Nil(err)
+
 		err = f.Close()
 		must.Nil(err)
 	}
@@ -182,7 +188,8 @@ func BenchmarkB64Encoder(b *testing.B) {
 		{frame.Binary, packet.MESSAGE, []byte("你好\n")},
 		{frame.Binary, packet.PING, []byte("probe")},
 	}
-	e := encoder{
+
+	e := Encoder{
 		supportBinary: false,
 		feeder: &fakeWriterFeeder{
 			w: ioutil.Discard,
@@ -193,8 +200,10 @@ func BenchmarkB64Encoder(b *testing.B) {
 	for _, p := range packets {
 		f, err := e.NextWriter(p.ft, p.pt)
 		must.Nil(err)
+
 		_, err = f.Write(p.data)
 		must.Nil(err)
+
 		err = f.Close()
 		must.Nil(err)
 	}
@@ -218,7 +227,7 @@ func BenchmarkBinaryEncoder(b *testing.B) {
 		{frame.String, packet.PING, []byte("probe")},
 	}
 
-	e := encoder{
+	e := Encoder{
 		supportBinary: true,
 		feeder: &fakeWriterFeeder{
 			w: ioutil.Discard,
@@ -229,8 +238,10 @@ func BenchmarkBinaryEncoder(b *testing.B) {
 	for _, p := range packets {
 		f, err := e.NextWriter(p.ft, p.pt)
 		must.Nil(err)
+
 		_, err = f.Write(p.data)
 		must.Nil(err)
+
 		err = f.Close()
 		must.Nil(err)
 	}

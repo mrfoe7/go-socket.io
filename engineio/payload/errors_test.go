@@ -8,20 +8,21 @@ import (
 
 func TestOpError(t *testing.T) {
 	tests := []struct {
-		op        string
+		op        OpType
 		err       error
 		temporary bool
-		errString string
+		errMsg string
 	}{
-		{"read", errPaused, true, "read: paused"},
-		{"read", errTimeout, false, "read: timeout"},
+		{read, errPaused, true, "read: paused"},
+		{read, errTimeout, false, "read: timeout"},
 	}
 
+	var err error
+
 	for _, test := range tests {
-		var err error
 		err = newOpError(test.op, test.err)
 
-		assert.Equal(t, test.errString, err.Error())
+		assert.EqualError(t, err, test.errMsg)
 
 		re, ok := err.(PayloadError)
 		assert.True(t, ok)

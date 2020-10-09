@@ -6,6 +6,7 @@ import (
 )
 
 // PayloadError is payload error.
+// todo: ref error name
 type PayloadError interface {
 	Error() string
 	Temporary() bool
@@ -13,11 +14,11 @@ type PayloadError interface {
 
 // OpError is operation error.
 type OpError struct {
-	Op  string
+	Op  OpType
 	Err error
 }
 
-func newOpError(op string, err error) error {
+func newOpError(op OpType, err error) error {
 	return &OpError{
 		Op:  op,
 		Err: err,
@@ -48,12 +49,14 @@ func (e retryError) Temporary() bool {
 	return true
 }
 
-var errPaused = retryError{"paused"}
+var (
+	errPaused = retryError{"paused"}
 
-var errTimeout = errors.New("timeout")
+	errTimeout = errors.New("timeout")
 
-var errInvalidPayload = errors.New("invalid payload")
+	errInvalidPayload = errors.New("invalid payload")
 
-var errDrain = errors.New("drain")
+	errDrain = errors.New("drain")
 
-var errOverlap = errors.New("overlap")
+	errOverlap = errors.New("overlap")
+)

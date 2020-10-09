@@ -48,7 +48,7 @@ func TestDecoder(t *testing.T) {
 			data:          test.data,
 			supportBinary: test.supportBinary,
 		}
-		d := decoder{
+		d := Decoder{
 			feeder: &feeder,
 		}
 		var packets []Packet
@@ -84,7 +84,7 @@ func TestDecoderNextReaderError(t *testing.T) {
 		data:          []byte{0x00, 0x01, 0xff, '0'},
 		supportBinary: true,
 	}
-	d := decoder{
+	d := Decoder{
 		feeder: &feeder,
 	}
 
@@ -99,7 +99,7 @@ func BenchmarkStringDecoder(b *testing.B) {
 		data:          []byte("8:4你好\n6:2probe"),
 		supportBinary: false,
 	}
-	d := decoder{
+	d := Decoder{
 		feeder: &feeder,
 	}
 	buf := make([]byte, 10)
@@ -119,7 +119,7 @@ func BenchmarkB64Decoder(b *testing.B) {
 		data:          []byte("10:b4aGVsbG8K6:2probe"),
 		supportBinary: false,
 	}
-	d := decoder{
+	d := Decoder{
 		feeder: &feeder,
 	}
 	buf := make([]byte, 10)
@@ -143,12 +143,13 @@ func BenchmarkBinaryDecoder(b *testing.B) {
 		},
 		supportBinary: true,
 	}
-	d := decoder{
+	d := Decoder{
 		feeder: &feeder,
 	}
 	buf := make([]byte, 10)
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < 3; j++ {
 			_, _, r, _ := d.NextReader()

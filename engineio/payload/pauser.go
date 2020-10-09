@@ -17,7 +17,7 @@ type pauser struct {
 	pausing chan struct{}
 	paused  chan struct{}
 
-	lock       sync.Mutex
+	lock    sync.Mutex
 	c       *sync.Cond
 }
 
@@ -27,7 +27,9 @@ func newPauser() *pauser {
 		paused:  make(chan struct{}),
 		status:  statusNormal,
 	}
+
 	ret.c = sync.NewCond(&ret.lock)
+
 	return ret
 }
 

@@ -1,9 +1,6 @@
 package payload
 
 import (
-	"fmt"
-	"github.com/googollee/go-socket.io/engineio/frame"
-	"github.com/googollee/go-socket.io/engineio/packet"
 	"io"
 	"math"
 	"sync"
@@ -20,14 +17,13 @@ type readArg struct {
 type Payload struct {
 	pauser *pauser
 
-	decoder      decoder
+	Decoder
 	feeding      int32
 	readerChan   chan readArg
 	readError    chan error
 	readDeadline atomic.Value
 
-
-	encoder       encoder
+	Encoder
 	flushing      int32
 	writerChan    chan io.Writer
 	writeError    chan error
@@ -51,12 +47,12 @@ func New(supportBinary bool) *Payload {
 	}
 
 	ret.readDeadline.Store(time.Time{})
-	ret.decoder.feeder = ret
+	ret.Decoder.feeder = ret
 
 	ret.writeDeadline.Store(time.Time{})
-	ret.encoder.feeder = ret
+	ret.Encoder.feeder = ret
 
-	ret.encoder.supportBinary = supportBinary
+	ret.Encoder.supportBinary = supportBinary
 
 	return ret
 }
@@ -76,18 +72,18 @@ func (p *Payload) FeedIn(r io.Reader, supportBinary bool) error {
 	}
 
 	if !atomic.CompareAndSwapInt32(&p.feeding, 0, 1) {
-		return newOpError("read", errOverlap)
+		return newOpError(read, errOverlap)
 	}
 	defer atomic.StoreInt32(&p.feeding, 0)
 	if ok := p.pauser.Working(); !ok {
-		return newOpError("payload", errPaused)
+		return newOpError(payload, errPaused)
 	}
 	defer p.pauser.Done()
 
 	for {
 		after, ok := p.readTimeout()
 		if !ok {
-			return p.Store("read", errTimeout)
+			return p.Store(read, errTimeout)
 		}
 		select {
 		case <-p.close:
@@ -97,8 +93,7 @@ func (p *Payload) FeedIn(r io.Reader, supportBinary bool) error {
 			continue
 		case p.readerChan <- readArg{
 			r:             r,
-			supportBinary: supportBinary,
-		}:
+			supportBinary: supportBinary}:
 		}
 		break
 	}
@@ -106,14 +101,14 @@ func (p *Payload) FeedIn(r io.Reader, supportBinary bool) error {
 	for {
 		after, ok := p.readTimeout()
 		if !ok {
-			return p.Store("read", errTimeout)
+			return p.Store(read, errTimeout)
 		}
 		select {
 		case <-after:
 			// it may changed during wait, need check again
 			continue
 		case err := <-p.readError:
-			return p.Store("read", err)
+			return p.Store(read, err)
 		}
 	}
 }
@@ -134,12 +129,12 @@ func (p *Payload) FlushOut(w io.Writer) error {
 	}
 
 	if !atomic.CompareAndSwapInt32(&p.flushing, 0, 1) {
-		return newOpError("write", errOverlap)
+		return newOpError(write, errOverlap)
 	}
 	defer atomic.StoreInt32(&p.flushing, 0)
 
 	if ok := p.pauser.Working(); !ok {
-		_, err := w.Write(p.encoder.NOOP())
+		_, err := w.Write(p.Encoder.NOOP())
 		return err
 	}
 
@@ -148,7 +143,7 @@ func (p *Payload) FlushOut(w io.Writer) error {
 	for {
 		after, ok := p.writeTimeout()
 		if !ok {
-			return p.Store("write", errTimeout)
+			return p.Store(write, errTimeout)
 		}
 		select {
 		case <-p.close:
@@ -156,7 +151,7 @@ func (p *Payload) FlushOut(w io.Writer) error {
 		case <-after:
 			continue
 		case <-p.pauser.PausingTrigger():
-			_, err := w.Write(p.encoder.NOOP())
+			_, err := w.Write(p.Encoder.NOOP())
 			return err
 		case p.writerChan <- w:
 		}
@@ -166,26 +161,15 @@ func (p *Payload) FlushOut(w io.Writer) error {
 	for {
 		after, ok := p.writeTimeout()
 		if !ok {
-			return p.Store("write", errTimeout)
+			return p.Store(write, errTimeout)
 		}
 		select {
 		case <-after:
 			// it may changed during wait, need check again
 		case err := <-p.writeError:
-			return p.Store("write", err)
+			return p.Store(write, err)
 		}
 	}
-}
-
-// NextReader returns a reader for next frame.
-// NextReader and SetReadDeadline needs be called sync.
-//
-// If Close called when NextReader,  it return io.EOF.
-// Pause doesn't effect to NextReader. NextReader should wait till resumed
-// and next FeedIn.
-func (p *Payload) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
-	ft, pt, r, err := p.decoder.NextReader()
-	return ft, pt, r, err
 }
 
 // SetReadDeadline sets next reader deadline.
@@ -199,18 +183,6 @@ func (p *Payload) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
 func (p *Payload) SetReadDeadline(t time.Time) error {
 	p.readDeadline.Store(t)
 	return nil
-}
-
-// NextWriter returns a writer for next frame.
-// NextWriter and SetWriterDeadline needs be called sync.
-// NextWriter will wait a FlushOut call, then it returns WriteCloser which
-// encode package to FlushOut's Writer.
-//
-// If Close called when NextWriter,  it returns io.EOF.
-// If beyond the time set by SetWriteDeadline, it returns ErrTimeout.
-// If Pause called when NextWriter, it returns ErrPaused.
-func (p *Payload) NextWriter(ft frame.Type, pt packet.Type) (io.WriteCloser, error) {
-	return p.encoder.NextWriter(ft, pt)
 }
 
 // SetWriteDeadline sets next writer deadline.
@@ -233,7 +205,6 @@ func (p *Payload) Pause() {
 // Resume resumes the payload.
 // It can call in multi-goroutine.
 func (p *Payload) Resume() {
-	fmt.Println("resume")
 	p.pauser.Resume()
 }
 
@@ -247,7 +218,7 @@ func (p *Payload) Close() error {
 }
 
 // Store stores a error in payload, and block all other request.
-func (p *Payload) Store(op string, err error) error {
+func (p *Payload) Store(op OpType, err error) error {
 	old := p.err.Load()
 	if old == nil {
 		if err == io.EOF || err == nil {
@@ -294,20 +265,20 @@ func (p *Payload) getReader() (io.Reader, bool, error) {
 	}
 
 	if ok := p.pauser.Working(); !ok {
-		return nil, false, newOpError("payload", errPaused)
+		return nil, false, newOpError(payload, errPaused)
 	}
 	p.pauser.Done()
 
 	for {
 		after, ok := p.readTimeout()
 		if !ok {
-			return nil, false, p.Store("read", errTimeout)
+			return nil, false, p.Store(read, errTimeout)
 		}
 		select {
 		case <-p.close:
 			return nil, false, p.load()
 		case <-p.pauser.PausedTrigger():
-			return nil, false, newOpError("payload", errPaused)
+			return nil, false, newOpError(payload, errPaused)
 		case <-after:
 			continue
 		case arg := <-p.readerChan:
@@ -325,7 +296,7 @@ func (p *Payload) putReader(err error) error {
 	for {
 		after, ok := p.readTimeout()
 		if !ok {
-			return p.Store("read", errTimeout)
+			return p.Store(read, errTimeout)
 		}
 		select {
 		case <-p.close:
@@ -346,20 +317,20 @@ func (p *Payload) getWriter() (io.Writer, error) {
 	}
 
 	if ok := p.pauser.Working(); !ok {
-		return nil, newOpError("payload", errPaused)
+		return nil, newOpError(payload, errPaused)
 	}
 	p.pauser.Done()
 
 	for {
 		after, ok := p.writeTimeout()
 		if !ok {
-			return nil, p.Store("write", errTimeout)
+			return nil, p.Store(write, errTimeout)
 		}
 		select {
 		case <-p.close:
 			return nil, p.load()
 		case <-p.pauser.PausedTrigger():
-			return nil, newOpError("payload", errPaused)
+			return nil, newOpError(payload, errPaused)
 		case <-after:
 			continue
 		case w := <-p.writerChan:
@@ -377,9 +348,10 @@ func (p *Payload) putWriter(err error) error {
 	for {
 		after, ok := p.writeTimeout()
 		if !ok {
-			return p.Store("write", errTimeout)
+			return p.Store(write, errTimeout)
 		}
-		ret := p.Store("write", err)
+		ret := p.Store(write, err)
+
 		select {
 		case <-p.close:
 			return p.load()

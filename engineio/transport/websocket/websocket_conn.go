@@ -1,9 +1,8 @@
 package websocket
 
 import (
-	"github.com/googollee/go-socket.io/engineio/protocol"
+	"github.com/googollee/go-socket.io/engineio/parser"
 	"github.com/googollee/go-socket.io/engineio/transport"
-	"github.com/googollee/go-socket.io/engineio/utils"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,8 +13,8 @@ import (
 )
 
 type conn struct {
-	utils.Writer
-	utils.Reader
+	parser.Writer
+	parser.Reader
 
 	url          url.URL
 	remoteHeader http.Header
@@ -35,8 +34,8 @@ func newConn(wsConn *websocket.Conn, url *url.URL, header http.Header) transport
 		ws:           w,
 		closed:       make(chan struct{}),
 		//todo: mb usage parser without protocol
-		Reader:  protocol.NewDecoder(w),
-		Writer:  protocol.NewEncoder(w),
+		Reader: parser.NewDecoder(w),
+		Writer: parser.NewEncoder(w),
 	}
 }
 

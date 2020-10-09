@@ -1,4 +1,4 @@
-package protocol
+package parser
 
 import (
 	"io"
@@ -19,14 +19,18 @@ func newDecoder(r FrameReader) *decoder {
 }
 
 func (e *decoder) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
-	ft, r, err := e.r.NextReader()
+	ft, r, err := e.r.FrameRead()
 	if err != nil {
-		return 0, 0, nil, err
+		return frame.String, packet.OPEN, nil, err
 	}
-	var b [1]byte
+
+	var b[1]byte
+
 	if _, err := io.ReadFull(r, b[:]); err != nil {
 		_ = r.Close()
-		return 0, 0, nil, err
+
+		return frame.String, packet.OPEN, nil, err
 	}
+
 	return ft, utils.ByteToPacketType(b[0], ft), r, nil
 }

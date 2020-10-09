@@ -34,8 +34,7 @@ func TestWebsocketSetReadDeadline(t *testing.T) {
 
 	u.Scheme = "ws"
 
-	header := make(http.Header)
-	cc, err := tran.Dial(u, header)
+	cc, err := tran.Dial(*u, make(http.Header))
 	require.NoError(t, err)
 
 	defer cc.Close()
@@ -46,7 +45,7 @@ func TestWebsocketSetReadDeadline(t *testing.T) {
 	err = cc.SetReadDeadline(time.Now().Add(time.Second / 10))
 	require.NoError(t, err)
 
-	_, _, _, err = cc.NextReader()
+	_, _, _, err = cc.NextRead()
 	require.Error(t, err)
 
 	timeout, ok := err.(net.Error)

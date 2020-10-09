@@ -20,7 +20,7 @@ type readerFeeder interface {
 	putReader(error) error
 }
 
-type decoder struct {
+type Decoder struct {
 	limitReader io.LimitedReader
 	b64Reader   io.Reader
 	feeder      readerFeeder
@@ -32,7 +32,7 @@ type decoder struct {
 	pt packet.Type
 }
 
-func (d *decoder) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
+func (d *Decoder) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
 	if d.rawReader == nil {
 		r, supportBinary, err := d.feeder.getReader()
 		if err != nil {
@@ -50,14 +50,14 @@ func (d *decoder) NextReader() (frame.Type, packet.Type, io.ReadCloser, error) {
 	return d.ft, d.pt, d, nil
 }
 
-func (d *decoder) Read(p []byte) (int, error) {
+func (d *Decoder) Read(p []byte) (int, error) {
 	if d.b64Reader != nil {
 		return d.b64Reader.Read(p)
 	}
 	return d.limitReader.Read(p)
 }
 
-func (d *decoder) Close() error {
+func (d *Decoder) Close() error {
 	if _, err := io.Copy(ioutil.Discard, d); err != nil {
 		return d.sendError(err)
 	}
@@ -78,7 +78,7 @@ func (d *decoder) Close() error {
 	return err
 }
 
-func (d *decoder) setNextReader(r byteReader, supportBinary bool) error {
+func (d *Decoder) setNextReader(r byteReader, supportBinary bool) error {
 	var read func(byteReader) (frame.Type, packet.Type, int64, error)
 
 	if supportBinary {
@@ -108,7 +108,7 @@ func (d *decoder) setNextReader(r byteReader, supportBinary bool) error {
 	return nil
 }
 
-func (d *decoder) sendError(err error) error {
+func (d *Decoder) sendError(err error) error {
 	if e := d.feeder.putReader(err); e != nil {
 		return e
 	}
@@ -116,7 +116,7 @@ func (d *decoder) sendError(err error) error {
 	return err
 }
 
-func (d *decoder) textRead(r byteReader) (frame.Type, packet.Type, int64, error) {
+func (d *Decoder) textRead(r byteReader) (frame.Type, packet.Type, int64, error) {
 	l, err := readTextLen(r)
 	if err != nil {
 		return 0, 0, 0, err
@@ -142,7 +142,7 @@ func (d *decoder) textRead(r byteReader) (frame.Type, packet.Type, int64, error)
 	return ft, pt, l, nil
 }
 
-func (d *decoder) binaryRead(r byteReader) (frame.Type, packet.Type, int64, error) {
+func (d *Decoder) binaryRead(r byteReader) (frame.Type, packet.Type, int64, error) {
 	b, err := r.ReadByte()
 	if err != nil {
 		return 0, 0, 0, err
