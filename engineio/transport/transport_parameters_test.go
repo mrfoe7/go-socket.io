@@ -36,9 +36,9 @@ func TestConnParameters(t *testing.T) {
 		at.Equal(int64(len(test.out)), n)
 		at.Equal(test.out, buf.String())
 
-		conn, err := ReadConnParameters(buf)
+		connParams, err := ReadConnParameters(buf)
 		must.Nil(err)
-		at.Equal(test.para, conn)
+		at.Equal(test.para, connParams)
 	}
 }
 

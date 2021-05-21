@@ -2,7 +2,6 @@ package polling
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -36,29 +35,27 @@ func (c *clientConn) Open() (transport.ConnParameters, error) {
 
 	if pt != packet.OPEN {
 		r.Close()
-		return transport.ConnParameters{}, errors.New("invalid open")
+		return transport.ConnParameters{}, errDialerOpen
 	}
 
-	conn, err := transport.ReadConnParameters(r)
+	connParams, err := transport.ReadConnParameters(r)
 	if err != nil {
 		r.Close()
 		return transport.ConnParameters{}, err
 	}
 
-	err = r.Close()
-
-	if err != nil {
+	if r.Close() != nil {
 		return transport.ConnParameters{}, err
 	}
 
 	query := c.request.URL.Query()
-	query.Set("sid", conn.SID)
+	query.Set("sid", connParams.SID)
 	c.request.URL.RawQuery = query.Encode()
 
 	go c.serveGet()
 	go c.servePost()
 
-	return conn, nil
+	return connParams, nil
 }
 
 func (c *clientConn) URL() url.URL {

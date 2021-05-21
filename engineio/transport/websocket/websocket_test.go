@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/googollee/go-socket.io/engineio/frame"
 	"github.com/googollee/go-socket.io/engineio/packet"
@@ -27,6 +28,8 @@ var tests = []struct {
 }
 
 func TestWebsocket(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	wsTransport := &Transport{}
 	assert.Equal(t, "websocket", wsTransport.Name())
 

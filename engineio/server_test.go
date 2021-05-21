@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/googollee/go-socket.io/engineio/frame"
 	"github.com/googollee/go-socket.io/engineio/packet"
@@ -22,6 +23,8 @@ import (
 )
 
 func TestEnginePolling(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	should := assert.New(t)
 	must := require.New(t)
 
@@ -31,14 +34,11 @@ func TestEnginePolling(t *testing.T) {
 	httpSvr := httptest.NewServer(svr)
 	defer httpSvr.Close()
 
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
-
-		should := assert.New(t)
-		must := require.New(t)
 
 		conn, err := svr.Accept()
 		must.Nil(err)
@@ -93,6 +93,8 @@ func TestEnginePolling(t *testing.T) {
 }
 
 func TestEngineWebsocket(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	should := assert.New(t)
 	must := require.New(t)
 
@@ -110,9 +112,6 @@ func TestEngineWebsocket(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-
-		should := assert.New(t)
-		must := require.New(t)
 
 		conn, err := svr.Accept()
 		must.Nil(err)
@@ -187,6 +186,8 @@ func TestEngineWebsocket(t *testing.T) {
 }
 
 func TestEngineUpgrade(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	should := assert.New(t)
 	must := require.New(t)
 
@@ -202,9 +203,6 @@ func TestEngineUpgrade(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-
-		should := assert.New(t)
-		must := require.New(t)
 
 		conn, err := svr.Accept()
 		must.Nil(err)

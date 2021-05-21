@@ -89,10 +89,10 @@ func (r rcWrapper) Close() error {
 	return err
 }
 
-func (w wrapper) NextWriter(FType frame.Type) (io.WriteCloser, error) {
+func (w wrapper) NextWriter(fType frame.Type) (io.WriteCloser, error) {
 	var t int
 
-	switch FType {
+	switch fType {
 	case frame.String:
 		t = websocket.TextMessage
 	case frame.Binary:
@@ -101,11 +101,10 @@ func (w wrapper) NextWriter(FType frame.Type) (io.WriteCloser, error) {
 		return nil, transport.ErrInvalidFrame
 	}
 
+	// The wrapper remains locked until the returned WriteCloser is Closed.
 	w.writeLocker.Lock()
 	writer, err := w.Conn.NextWriter(t)
-	// The wrapper remains locked until the returned WriteCloser is Closed.
 	if err != nil {
-		w.writeLocker.Unlock()
 		return nil, err
 	}
 
@@ -144,6 +143,7 @@ func (w wcWrapper) Close() error {
 	// Stop the nagger.
 	w.nagTimer.Stop()
 	close(w.quitNag)
+
 	// Unlock the wrapper's write lock for future calls to NextWriter.
 	defer w.l.Unlock()
 	return w.WriteCloser.Close()

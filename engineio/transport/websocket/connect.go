@@ -18,7 +18,7 @@ type conn struct {
 	transport.FrameReader
 	transport.FrameWriter
 
-	ws wrapper
+	wsWrapper wrapper
 
 	url          url.URL
 	remoteHeader http.Header
@@ -29,13 +29,12 @@ type conn struct {
 
 func newConn(ws *websocket.Conn, url url.URL, header http.Header) *conn {
 	w := newWrapper(ws)
-	closed := make(chan struct{})
 
 	return &conn{
 		url:          url,
 		remoteHeader: header,
-		ws:           w,
-		closed:       closed,
+		wsWrapper:    w,
+		closed:       make(chan struct{}),
 		FrameReader:  packet.NewDecoder(w),
 		FrameWriter:  packet.NewEncoder(w),
 	}
@@ -50,23 +49,23 @@ func (c *conn) RemoteHeader() http.Header {
 }
 
 func (c *conn) LocalAddr() net.Addr {
-	return c.ws.LocalAddr()
+	return c.wsWrapper.LocalAddr()
 }
 
 func (c *conn) RemoteAddr() net.Addr {
-	return c.ws.RemoteAddr()
+	return c.wsWrapper.RemoteAddr()
 }
 
 func (c *conn) SetReadDeadline(t time.Time) error {
-	return c.ws.SetReadDeadline(t)
+	return c.wsWrapper.SetReadDeadline(t)
 }
 
 func (c *conn) SetWriteDeadline(t time.Time) error {
 	// TODO: is locking really needed for SetWriteDeadline? If so, what about
 	// the read deadline?
-	c.ws.writeLocker.Lock()
-	err := c.ws.SetWriteDeadline(t)
-	c.ws.writeLocker.Unlock()
+	c.wsWrapper.writeLocker.Lock()
+	err := c.wsWrapper.SetWriteDeadline(t)
+	c.wsWrapper.writeLocker.Unlock()
 
 	return err
 }
@@ -79,5 +78,5 @@ func (c *conn) Close() error {
 	c.closeOnce.Do(func() {
 		close(c.closed)
 	})
-	return c.ws.Close()
+	return c.wsWrapper.Close()
 }

@@ -24,6 +24,7 @@ func NewEncoder(w FrameWriter) *Encoder {
 
 func (e *Encoder) Encode(h Header, args ...interface{}) (err error) {
 	var w io.WriteCloser
+
 	w, err = e.w.NextWriter(session.TEXT)
 	if err != nil {
 		return
